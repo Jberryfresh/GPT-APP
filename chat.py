@@ -1,3 +1,4 @@
+
 """
 Chat and Inference Routes
 ========================
@@ -46,7 +47,6 @@ def chat_completions():
         max_tokens = data.get('max_tokens', 256)
         temperature = data.get('temperature', 0.7)
         top_p = data.get('top_p', 0.9)
-        top_k = data.get('top_k', 50)
 
         if not messages:
             return jsonify({
