@@ -31,9 +31,28 @@
                 // Check for existing authentication
                 const token = localStorage.getItem('auth_token');
                 if (token) {
-                    setIsAuthenticated(true);
+                    // Verify token with backend
+                    fetch('/api/v1/auth/me', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            setIsAuthenticated(true);
+                        } else {
+                            localStorage.removeItem('auth_token');
+                        }
+                        setLoading(false);
+                    })
+                    .catch(() => {
+                        localStorage.removeItem('auth_token');
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
                 }
-                setLoading(false);
             }, []);
 
             const handleLogin = () => {
@@ -108,10 +127,36 @@
         function LoginPage({ onLogin }) {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
 
-            const handleSubmit = (e) => {
+            const handleSubmit = async (e) => {
                 e.preventDefault();
-                onLogin();
+                setLoading(true);
+                setError('');
+
+                try {
+                    const response = await fetch('/api/v1/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        localStorage.setItem('auth_token', data.access_token);
+                        onLogin(data.user);
+                    } else {
+                        setError(data.error || 'Login failed');
+                    }
+                } catch (error) {
+                    setError('Network error. Please try again.');
+                }
+                
+                setLoading(false);
             };
 
             return (
@@ -122,6 +167,11 @@
                             <p className="mt-2 text-gray-600">Sign in to your account</p>
                         </div>
                         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                                    {error}
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Email address</label>
                                 <input
@@ -129,7 +179,8 @@
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    placeholder="demo@example.com"
+                                    placeholder="admin@example.com"
+                                    required
                                 />
                             </div>
                             <div>
@@ -139,18 +190,20 @@
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    placeholder="password"
+                                    placeholder="admin123"
+                                    required
                                 />
                             </div>
                             <button
                                 type="submit"
-                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                disabled={loading}
+                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
                             >
-                                Sign in (Demo)
+                                {loading ? 'Signing in...' : 'Sign in'}
                             </button>
                         </form>
                         <div className="text-center text-sm text-gray-500">
-                            <p>Demo Mode - Use any email/password to continue</p>
+                            <p>Admin credentials: admin@example.com / admin123</p>
                         </div>
                     </div>
                 </div>
