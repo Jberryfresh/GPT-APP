@@ -50,3 +50,12 @@ flake8>=6.0.0
 # openai>=0.27.0  # For OpenAI API integration
 # tiktoken>=0.4.0  # For token counting
 # faiss-cpu>=1.7.4  # For vector similarity search
+chardet
+chardet
+flask
+flask-cors
+flask-jwt-extended
+psutil
+python-dotenv
+pyyaml
+requests
