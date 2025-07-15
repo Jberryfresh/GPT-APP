@@ -94,7 +94,7 @@ def chat_completions():
 
 @chat_bp.route('/chat/conversations', methods=['GET'])
 @jwt_required()
-def chat_completions():
+def get_conversations():
     """OpenAI-compatible chat completions endpoint."""
     try:
         data = request.get_json()
