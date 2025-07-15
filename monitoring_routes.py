@@ -1,4 +1,3 @@
-
 """
 Monitoring API Routes
 ====================
@@ -104,13 +103,13 @@ def manage_thresholds():
                     'success': False,
                     'error': 'No threshold data provided'
                 }), 400
-                
+
             performance_monitor.thresholds.update(new_thresholds)
             return jsonify({
                 'success': True,
                 'data': performance_monitor.thresholds
             })
-            
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -124,7 +123,7 @@ def export_metrics():
     """Export metrics data for analysis."""
     try:
         metrics = get_comprehensive_metrics()
-        
+
         # Add metadata
         export_data = {
             'export_timestamp': metrics_collector.get_metrics_summary()['timestamp'],
@@ -132,13 +131,140 @@ def export_metrics():
             'version': '1.0',
             'data': metrics
         }
-        
+
         response = jsonify(export_data)
         response.headers['Content-Disposition'] = 'attachment; filename=metrics_export.json'
         return response
-        
+
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
+@monitoring_bp.route('/health/detailed', methods=['GET'])
+def detailed_health():
+    """Get detailed health information."""
+    try:
+        health_data = monitor.get_health_summary()
+
+        # Add model manager health if available
+        from flask import current_app
+        model_manager = getattr(current_app, 'model_manager', None)
+        if model_manager and hasattr(model_manager, 'get_system_health'):
+            health_data['model_manager'] = model_manager.get_system_health()
+
+        return jsonify({
+            'success': True,
+            'health': health_data
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting detailed health: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@monitoring_bp.route('/models/stats', methods=['GET'])
+def model_stats():
+    """Get model performance statistics."""
+    try:
+        from flask import current_app
+        model_manager = getattr(current_app, 'model_manager', None)
+
+        if not model_manager:
+            return jsonify({
+                'success': False,
+                'error': 'Model manager not available'
+            }), 503
+
+        if hasattr(model_manager, 'get_performance_stats'):
+            stats = model_manager.get_performance_stats()
+            return jsonify({
+                'success': True,
+                'stats': stats
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'loaded_models': len(getattr(model_manager, 'models', {})),
+                    'message': 'Limited stats available'
+                }
+            })
+
+    except Exception as e:
+        logger.error(f"Error getting model stats: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@monitoring_bp.route('/models/memory', methods=['GET'])
+def model_memory():
+    """Get model memory usage."""
+    try:
+        from flask import current_app
+        model_manager = getattr(current_app, 'model_manager', None)
+
+        if not model_manager:
+            return jsonify({
+                'success': False,
+                'error': 'Model manager not available'
+            }), 503
+
+        if hasattr(model_manager, 'get_memory_usage'):
+            memory_usage = model_manager.get_memory_usage()
+            return jsonify({
+                'success': True,
+                'memory': memory_usage
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'memory': {'message': 'Memory monitoring not available'}
+            })
+
+    except Exception as e:
+        logger.error(f"Error getting model memory: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@monitoring_bp.route('/models/cleanup', methods=['POST'])
+def cleanup_memory():
+    """Trigger memory cleanup."""
+    try:
+        from flask import current_app
+        model_manager = getattr(current_app, 'model_manager', None)
+
+        if not model_manager:
+            return jsonify({
+                'success': False,
+                'error': 'Model manager not available'
+            }), 503
+
+        if hasattr(model_manager, 'cleanup_memory'):
+            model_manager.cleanup_memory()
+            return jsonify({
+                'success': True,
+                'message': 'Memory cleanup completed'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Memory cleanup not available'
+            }), 501
+
+    except Exception as e:
+        logger.error(f"Error during memory cleanup: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Export blueprint
+monitoring_bp = Blueprint('monitoring', __name__)
+__all__ = ['monitoring_bp']

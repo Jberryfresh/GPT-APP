@@ -447,8 +447,30 @@ class ModelManager:
         self.models: Dict[str, ModelInference] = {}
         self.conversation_manager = ConversationManager()
         self.default_model_id: Optional[str] = None
+        
+        # Performance monitoring
+        self.model_stats = {}
+        self.memory_tracker = {}
+        self.error_count = 0
+        self.total_requests = 0
+        self.start_time = time.time()
+        
+        # Memory thresholds (in GB)
+        self.memory_warning_threshold = 6.0
+        self.memory_critical_threshold = 8.0
+        
+        # Performance tracking
+        self.response_times = []
+        self.max_response_time_history = 1000
+        
+        self.logger = logging.getLogger(__name__ + ".ModelManager")
+        
         if not DEPENDENCIES_AVAILABLE:
             self.logger.warning("ML dependencies not available. ModelManager running in fallback mode.")
+            
+        # Initialize monitoring if available
+        if model_monitor:
+            model_monitor.register_model_manager(self)
 
 
     def load_model(self, model_path: str, model_id: str = None) -> str:
@@ -512,27 +534,39 @@ class ModelManager:
         Returns:
             Generated response text
         """
-        if not DEPENDENCIES_AVAILABLE:
-            return f"I received your message: '{message}'. However, the AI model dependencies are not currently available. Please install the required packages (torch, transformers, etc.) to enable full functionality."
-        if model_id is None:
-            model_id = self.default_model_id
+        start_time = time.time()
+        success = False
+        
+        try:
+            if not DEPENDENCIES_AVAILABLE:
+                return f"I received your message: '{message}'. However, the AI model dependencies are not currently available. Please install the required packages (torch, transformers, etc.) to enable full functionality."
+            
+            if model_id is None:
+                model_id = self.default_model_id
 
-        if model_id is None or model_id not in self.models:
-            raise ValueError("No model available for inference")
+            if model_id is None or model_id not in self.models:
+                raise ValueError("No model available for inference")
 
-        model = self.models[model_id]
+            model = self.models[model_id]
 
-        # Get conversation context
-        context = self.conversation_manager.get_conversation_context(conversation_id)
+            # Get conversation context
+            context = self.conversation_manager.get_conversation_context(conversation_id)
 
-        # Generate response
-        response = model.generate_response(message, config, context)
+            # Generate response
+            response = model.generate_response(message, config, context)
 
-        # Update conversation
-        self.conversation_manager.add_message(conversation_id, "user", message)
-        self.conversation_manager.add_message(conversation_id, "assistant", response)
+            # Update conversation
+            self.conversation_manager.add_message(conversation_id, "user", message)
+            self.conversation_manager.add_message(conversation_id, "assistant", response)
 
-        return response
+            success = True
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"Chat error: {e}")
+            raise
+        finally:
+            self._track_request_performance(start_time, success, model_id)
 
     def chat_streaming(self, 
                       message: str, 
@@ -564,6 +598,155 @@ class ModelManager:
     def clear_conversation(self, conversation_id: str):
         """Clear a conversation."""
         self.conversation_manager.clear_conversation(conversation_id)
+
+    def get_memory_usage(self) -> Dict[str, float]:
+        """Get current memory usage statistics."""
+        memory_info = {}
+        
+        if psutil:
+            process = psutil.Process()
+            memory_info['system_memory_gb'] = psutil.virtual_memory().total / (1024**3)
+            memory_info['available_memory_gb'] = psutil.virtual_memory().available / (1024**3)
+            memory_info['process_memory_gb'] = process.memory_info().rss / (1024**3)
+            memory_info['memory_percent'] = process.memory_percent()
+        
+        # GPU memory if available
+        if torch and torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                gpu_memory = torch.cuda.get_device_properties(i).total_memory / (1024**3)
+                gpu_allocated = torch.cuda.memory_allocated(i) / (1024**3)
+                gpu_cached = torch.cuda.memory_reserved(i) / (1024**3)
+                
+                memory_info[f'gpu_{i}_total_gb'] = gpu_memory
+                memory_info[f'gpu_{i}_allocated_gb'] = gpu_allocated
+                memory_info[f'gpu_{i}_cached_gb'] = gpu_cached
+                memory_info[f'gpu_{i}_utilization_percent'] = (gpu_allocated / gpu_memory) * 100
+        
+        return memory_info
+
+    def check_memory_status(self) -> Dict[str, Any]:
+        """Check memory status and return warnings if needed."""
+        memory_usage = self.get_memory_usage()
+        status = {
+            'status': 'healthy',
+            'warnings': [],
+            'memory_usage': memory_usage
+        }
+        
+        process_memory = memory_usage.get('process_memory_gb', 0)
+        
+        if process_memory > self.memory_critical_threshold:
+            status['status'] = 'critical'
+            status['warnings'].append(f'Critical memory usage: {process_memory:.2f}GB')
+        elif process_memory > self.memory_warning_threshold:
+            status['status'] = 'warning'
+            status['warnings'].append(f'High memory usage: {process_memory:.2f}GB')
+        
+        return status
+
+    def cleanup_memory(self):
+        """Perform memory cleanup operations."""
+        if torch and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Force garbage collection
+        gc.collect()
+        
+        self.logger.info("Memory cleanup performed")
+
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get performance statistics."""
+        uptime = time.time() - self.start_time
+        
+        stats = {
+            'uptime_seconds': uptime,
+            'total_requests': self.total_requests,
+            'error_count': self.error_count,
+            'error_rate': (self.error_count / max(self.total_requests, 1)) * 100,
+            'requests_per_second': self.total_requests / max(uptime, 1),
+            'loaded_models_count': len(self.models),
+            'default_model': self.default_model_id
+        }
+        
+        # Response time statistics
+        if self.response_times:
+            stats['avg_response_time'] = sum(self.response_times) / len(self.response_times)
+            stats['min_response_time'] = min(self.response_times)
+            stats['max_response_time'] = max(self.response_times)
+            
+            # Percentiles
+            sorted_times = sorted(self.response_times)
+            p50_idx = int(len(sorted_times) * 0.5)
+            p95_idx = int(len(sorted_times) * 0.95)
+            p99_idx = int(len(sorted_times) * 0.99)
+            
+            stats['p50_response_time'] = sorted_times[p50_idx] if sorted_times else 0
+            stats['p95_response_time'] = sorted_times[p95_idx] if sorted_times else 0
+            stats['p99_response_time'] = sorted_times[p99_idx] if sorted_times else 0
+        
+        # Model-specific stats
+        stats['model_stats'] = self.model_stats.copy()
+        
+        return stats
+
+    def _track_request_performance(self, start_time: float, success: bool, model_id: str = None):
+        """Track performance metrics for a request."""
+        response_time = time.time() - start_time
+        
+        self.total_requests += 1
+        if not success:
+            self.error_count += 1
+        
+        # Track response times
+        self.response_times.append(response_time)
+        if len(self.response_times) > self.max_response_time_history:
+            self.response_times = self.response_times[-self.max_response_time_history:]
+        
+        # Track model-specific stats
+        if model_id:
+            if model_id not in self.model_stats:
+                self.model_stats[model_id] = {
+                    'requests': 0,
+                    'errors': 0,
+                    'total_time': 0,
+                    'avg_response_time': 0
+                }
+            
+            self.model_stats[model_id]['requests'] += 1
+            if not success:
+                self.model_stats[model_id]['errors'] += 1
+            
+            self.model_stats[model_id]['total_time'] += response_time
+            self.model_stats[model_id]['avg_response_time'] = (
+                self.model_stats[model_id]['total_time'] / 
+                self.model_stats[model_id]['requests']
+            )
+
+    def get_system_health(self) -> Dict[str, Any]:
+        """Get comprehensive system health information."""
+        memory_status = self.check_memory_status()
+        performance_stats = self.get_performance_stats()
+        
+        health = {
+            'timestamp': datetime.now().isoformat(),
+            'overall_status': 'healthy',
+            'memory': memory_status,
+            'performance': performance_stats,
+            'dependencies': {
+                'torch_available': torch is not None,
+                'cuda_available': torch.cuda.is_available() if torch else False,
+                'psutil_available': psutil is not None,
+                'transformers_available': DEPENDENCIES_AVAILABLE
+            }
+        }
+        
+        # Determine overall status
+        if memory_status['status'] == 'critical':
+            health['overall_status'] = 'critical'
+        elif memory_status['status'] == 'warning' or performance_stats['error_rate'] > 10:
+            health['overall_status'] = 'warning'
+        
+        return health
 
 # Example usage and testing functions
 def test_model_inference():

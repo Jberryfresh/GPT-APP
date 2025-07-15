@@ -54,10 +54,25 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ECHO'] = config.debug
 
-    # Initialize extensions with proper CORS settings for development
+    # Initialize extensions with proper CORS settings
     if config.environment == 'development':
-        CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000', 'http://0.0.0.0:3000'], 
-             supports_credentials=True, allow_headers=['Content-Type', 'Authorization'])
+        # Allow common development origins and Replit URLs
+        dev_origins = [
+            'http://localhost:3000',
+            'http://127.0.0.1:3000', 
+            'http://0.0.0.0:3000',
+            f'https://{os.environ.get("REPL_SLUG", "")}.{os.environ.get("REPL_OWNER", "")}.repl.co',
+            f'https://{os.environ.get("REPL_ID", "")}.id.repl.co'
+        ]
+        # Filter out empty URLs
+        dev_origins = [origin for origin in dev_origins if origin and not origin.endswith('.repl.co')]
+        dev_origins.extend(['*'])  # Allow all in development
+        
+        CORS(app, 
+             origins=dev_origins,
+             supports_credentials=True, 
+             allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+             methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
     else:
         CORS(app, origins=config.api.cors_origins)
     jwt = JWTManager(app)
