@@ -13,7 +13,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import uuid
 import json
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import JSON
 from sqlalchemy import event, text
 import logging
 
@@ -149,7 +150,7 @@ class Model(db.Model, TimestampMixin):
     last_used_at = db.Column(db.DateTime)
     
     # Configuration
-    config = db.Column(JSONB)
+    config = db.Column(JSON)
     
     # Relationships
     usage_records = db.relationship('UsageRecord', backref='model', lazy='dynamic')
@@ -202,7 +203,7 @@ class Dataset(db.Model, TimestampMixin):
     average_length = db.Column(db.Float)
     
     # Configuration
-    preprocessing_config = db.Column(JSONB)
+    preprocessing_config = db.Column(JSON)
     
     # Relationships
     models = db.relationship('Model', backref='dataset', lazy='dynamic')
@@ -237,7 +238,7 @@ class TrainingSession(db.Model, TimestampMixin):
     
     # Training configuration
     base_model = db.Column(db.String(255), nullable=False)
-    training_config = db.Column(JSONB)
+    training_config = db.Column(JSON)
     
     # Status tracking
     status = db.Column(db.String(50), default='queued')  # queued, running, completed, failed, cancelled
@@ -371,7 +372,7 @@ class UsageRecord(db.Model, TimestampMixin):
     cost_cents = db.Column(db.Integer, default=0)  # Cost in cents
     
     # Request metadata
-    request_metadata = db.Column(JSONB)
+    request_metadata = db.Column(JSON)
     
     def to_dict(self):
         """Convert to dictionary."""
@@ -381,6 +382,7 @@ class UsageRecord(db.Model, TimestampMixin):
             'tokens_used': self.tokens_used,
             'compute_time_seconds': self.compute_time_seconds,
             'cost_cents': self.cost_cents,
+            'request_metadata': self.request_metadata,
             'created_at': self.created_at.isoformat()
         }
 
@@ -402,9 +404,9 @@ class AuditLog(db.Model, TimestampMixin):
     request_id = db.Column(db.String(255))
     
     # Event data
-    old_values = db.Column(JSONB)
-    new_values = db.Column(JSONB)
-    event_metadata = db.Column(JSONB)
+    old_values = db.Column(JSON)
+    new_values = db.Column(JSON)
+    event_metadata = db.Column(JSON)
     
     # Status
     success = db.Column(db.Boolean, default=True)
