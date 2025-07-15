@@ -1,14 +1,15 @@
+
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import Navbar from './Navbar'
-import Dashboard from './Dashboard'
-import Chat from './Chat'
-import Models from './Models'
-import Training from './Training'
-import DataIngestion from './DataIngestion'
-import Settings from './Settings'
-import Subscription from './Subscription'
-import LoginPage from './LoginPage'
+import Navbar from './Navbar.jsx'
+import Dashboard from './Dashboard.jsx'
+import Chat from './Chat.jsx'
+import Models from './Models.jsx'
+import Training from './Training.jsx'
+import DataIngestion from './DataIngestion.jsx'
+import Settings from './Settings.jsx'
+import Subscription from './Subscription.jsx'
+import LoginPage from './LoginPage.jsx'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)

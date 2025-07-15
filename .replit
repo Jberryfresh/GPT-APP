@@ -12,8 +12,11 @@ run = ["sh", "-c", "python app.py"]
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5000
+
 [workflows]
-runButton = "Run Flask App"
+runButton = "Run Full Stack"
 
 [[workflows.workflow]]
 name = "Run Flask App"
@@ -24,5 +27,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "python app.py"
 
-[[ports]]
-localPort = 5000
+[[workflows.workflow]]
+name = "Run Full Stack"
+author = 23270859
+mode = "parallel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python app.py"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"

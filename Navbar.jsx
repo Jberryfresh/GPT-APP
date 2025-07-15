@@ -13,7 +13,6 @@ import {
   X,
   CreditCard
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -65,29 +64,26 @@ export default function Navbar({ user, onLogout }) {
                 <User className="h-5 w-5 text-gray-400" />
                 <span className="text-sm text-gray-700">{user?.email}</span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={onLogout}
-                className="text-gray-500 hover:text-gray-700"
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
-              </Button>
+              </button>
             </div>
           </div>
           <div className="sm:hidden flex items-center">
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="text-gray-500 hover:text-gray-700"
             >
               {mobileMenuOpen ? (
                 <X className="h-6 w-6" />
               ) : (
                 <Menu className="h-6 w-6" />
               )}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -126,14 +122,13 @@ export default function Navbar({ user, onLogout }) {
               </div>
             </div>
             <div className="mt-3 space-y-1">
-              <Button
-                variant="ghost"
-                className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+              <button
                 onClick={onLogout}
+                className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100"
               >
                 <LogOut className="h-5 w-5 mr-3 inline" />
                 Logout
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -141,60 +136,3 @@ export default function Navbar({ user, onLogout }) {
     </nav>
   )
 }
-
-import { Link, useLocation } from 'react-router-dom'
-import { LogOut, User } from 'lucide-react'
-
-function Navbar({ user, onLogout }) {
-  const location = useLocation()
-
-  const isActive = (path) => {
-    return location.pathname === path ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:text-white hover:bg-indigo-600'
-  }
-
-  return (
-    <nav className="bg-indigo-800 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link to="/" className="text-2xl font-bold text-white">
-              Custom GPT System
-            </Link>
-            <div className="hidden md:flex space-x-4">
-              <Link to="/" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/')}`}>
-                Dashboard
-              </Link>
-              <Link to="/chat" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/chat')}`}>
-                Chat
-              </Link>
-              <Link to="/models" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/models')}`}>
-                Models
-              </Link>
-              <Link to="/training" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/training')}`}>
-                Training
-              </Link>
-              <Link to="/data" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/data')}`}>
-                Data
-              </Link>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-indigo-200">
-              <User className="h-4 w-4" />
-              <span className="text-sm">{user?.email}</span>
-            </div>
-            <button
-              onClick={onLogout}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-700 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
-  )
-}
-
-export default Navbar
