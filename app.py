@@ -97,10 +97,14 @@ def create_app():
     @app.route('/<path:path>')
     def serve_static(path):
         """Serve static files."""
-        if os.path.exists(path):
+        # Check if file exists in current directory
+        if os.path.exists(os.path.join('.', path)):
             return send_from_directory('.', path)
-        # If file doesn't exist, serve index.html for client-side routing
-        return send_from_directory('.', 'index.html')
+        # For React Router - serve index.html for non-API routes
+        if not path.startswith('api/'):
+            return send_from_directory('.', 'index.html')
+        # Let API routes fall through to 404 handler
+        return "Not found", 404
 
     # Error handlers
     @app.errorhandler(404)
