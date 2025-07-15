@@ -1,4 +1,3 @@
-
 """
 Authentication Routes
 ====================
@@ -26,16 +25,16 @@ def login():
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
-        
+
         email = data.get('email')
         password = data.get('password')
-        
+
         if not email or not password:
             return jsonify({
                 'success': False,
                 'error': 'Email and password are required'
             }), 400
-        
+
         # Find user
         user = User.query.filter_by(email=email).first()
         if not user or not user.check_password(password):
@@ -43,28 +42,28 @@ def login():
                 'success': False,
                 'error': 'Invalid email or password'
             }), 401
-        
+
         # Check if account is locked
         if user.is_locked():
             return jsonify({
                 'success': False,
                 'error': 'Account is temporarily locked'
             }), 423
-        
+
         # Update login info
         user.last_login_at = datetime.utcnow()
         user.failed_login_attempts = 0
         db.session.commit()
-        
+
         # Create access token
         access_token = create_access_token(identity=str(user.id))
-        
+
         return jsonify({
             'success': True,
             'access_token': access_token,
             'user': user.to_dict()
         })
-    
+
     except Exception as e:
         logger.error(f"Error during login: {e}")
         return jsonify({
@@ -82,28 +81,28 @@ def register():
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
-        
+
         email = data.get('email')
         username = data.get('username')
         password = data.get('password')
-        
+
         if not all([email, username, password]):
             return jsonify({
                 'success': False,
                 'error': 'Email, username, and password are required'
             }), 400
-        
+
         # Check if user exists
         existing_user = User.query.filter(
             (User.email == email) | (User.username == username)
         ).first()
-        
+
         if existing_user:
             return jsonify({
                 'success': False,
                 'error': 'Email or username already exists'
             }), 409
-        
+
         # Create user
         user = User(
             email=email,
@@ -114,10 +113,10 @@ def register():
         )
         user.set_password(password)
         user.generate_api_key()
-        
+
         db.session.add(user)
         db.session.flush()  # Get user ID
-        
+
         # Create default subscription
         subscription = Subscription(
             user_id=user.id,
@@ -133,19 +132,19 @@ def register():
             current_period_start=datetime.utcnow(),
             current_period_end=datetime.utcnow() + timedelta(days=30)
         )
-        
+
         db.session.add(subscription)
         db.session.commit()
-        
+
         # Create access token
         access_token = create_access_token(identity=str(user.id))
-        
+
         return jsonify({
             'success': True,
             'access_token': access_token,
             'user': user.to_dict()
         }), 201
-    
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error during registration: {e}")
@@ -160,23 +159,35 @@ def get_current_user():
     """Get current user information."""
     try:
         user_id = get_jwt_identity()
-        
+
+        # Convert string UUID to UUID object if needed
+        if isinstance(user_id, str):
+            try:
+                import uuid
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid UUID format: {user_id}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid UUID format'
+                }), 400
+
         user = User.query.get(user_id)
         if not user:
             return jsonify({
                 'success': False,
                 'error': 'User not found'
             }), 404
-        
+
         # Get user's subscription
         subscription = Subscription.query.filter_by(user_id=user_id).first()
-        
+
         return jsonify({
             'success': True,
             'user': user.to_dict(),
             'subscription': subscription.to_dict() if subscription else None
         })
-    
+
     except Exception as e:
         logger.error(f"Error getting current user: {e}")
         return jsonify({

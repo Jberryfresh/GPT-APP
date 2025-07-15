@@ -411,3 +411,125 @@ export default function Training() {
   )
 }
 
+import { useState, useEffect } from 'react'
+import { Zap, Plus, Play, Pause, RotateCcw } from 'lucide-react'
+
+function Training() {
+  const [trainingJobs, setTrainingJobs] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchTrainingJobs()
+  }, [])
+
+  const fetchTrainingJobs = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch('/api/v1/training/jobs', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setTrainingJobs(data.jobs || [])
+      } else {
+        // Fallback demo data
+        setTrainingJobs([])
+      }
+    } catch (error) {
+      console.error('Error fetching training jobs:', error)
+      setTrainingJobs([])
+    }
+    setLoading(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Training</h1>
+          <p className="text-gray-600 mt-2">Train and fine-tune your AI models</p>
+        </div>
+        <button className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+          <Plus className="h-4 w-4" />
+          <span>New Training Job</span>
+        </button>
+      </div>
+
+      {trainingJobs.length === 0 ? (
+        <div className="text-center py-12">
+          <Zap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No training jobs yet</h3>
+          <p className="text-gray-500 mb-4">Start training your first custom AI model.</p>
+          <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+            Start Training
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {trainingJobs.map((job) => (
+            <div key={job.id} className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Zap className="h-8 w-8 text-indigo-600" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{job.name}</h3>
+                    <p className="text-sm text-gray-500">{job.model_type}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    job.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                    job.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    job.status === 'failed' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {job.status}
+                  </span>
+                  <div className="flex space-x-2">
+                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                      <Play className="h-4 w-4" />
+                    </button>
+                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                      <Pause className="h-4 w-4" />
+                    </button>
+                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {job.progress && (
+                <div className="mt-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>Progress</span>
+                    <span>{job.progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-indigo-600 h-2 rounded-full transition-all"
+                      style={{ width: `${job.progress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default Training

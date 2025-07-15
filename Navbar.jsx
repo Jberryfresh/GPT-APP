@@ -142,3 +142,59 @@ export default function Navbar({ user, onLogout }) {
   )
 }
 
+import { Link, useLocation } from 'react-router-dom'
+import { LogOut, User } from 'lucide-react'
+
+function Navbar({ user, onLogout }) {
+  const location = useLocation()
+
+  const isActive = (path) => {
+    return location.pathname === path ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:text-white hover:bg-indigo-600'
+  }
+
+  return (
+    <nav className="bg-indigo-800 shadow-lg">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center space-x-8">
+            <Link to="/" className="text-2xl font-bold text-white">
+              Custom GPT System
+            </Link>
+            <div className="hidden md:flex space-x-4">
+              <Link to="/" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/')}`}>
+                Dashboard
+              </Link>
+              <Link to="/chat" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/chat')}`}>
+                Chat
+              </Link>
+              <Link to="/models" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/models')}`}>
+                Models
+              </Link>
+              <Link to="/training" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/training')}`}>
+                Training
+              </Link>
+              <Link to="/data" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/data')}`}>
+                Data
+              </Link>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-indigo-200">
+              <User className="h-4 w-4" />
+              <span className="text-sm">{user?.email}</span>
+            </div>
+            <button
+              onClick={onLogout}
+              className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-indigo-700 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  )
+}
+
+export default Navbar

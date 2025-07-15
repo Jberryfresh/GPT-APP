@@ -445,3 +445,234 @@ export default function Subscription() {
   )
 }
 
+import { useState, useEffect } from 'react'
+import { Crown, Check, X } from 'lucide-react'
+
+function Subscription() {
+  const [currentPlan, setCurrentPlan] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchSubscription()
+  }, [])
+
+  const fetchSubscription = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch('/api/v1/subscription', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentPlan(data.subscription)
+      } else {
+        // Fallback demo data
+        setCurrentPlan({
+          tier: 'enterprise',
+          status: 'active',
+          monthly_token_limit: null,
+          monthly_tokens_used: 1250,
+          monthly_training_hours_limit: null,
+          monthly_training_hours_used: 5.5
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error)
+    }
+    setLoading(false)
+  }
+
+  const plans = [
+    {
+      name: 'Starter',
+      price: '$29',
+      interval: 'month',
+      features: [
+        '10,000 API calls/month',
+        '2 hours training/month',
+        '1 custom model',
+        'Email support',
+        'Basic analytics'
+      ],
+      limitations: [
+        'No priority support',
+        'Limited integrations'
+      ]
+    },
+    {
+      name: 'Professional',
+      price: '$99',
+      interval: 'month',
+      popular: true,
+      features: [
+        '100,000 API calls/month',
+        '20 hours training/month',
+        '5 custom models',
+        'Priority support',
+        'Advanced analytics',
+        'API access',
+        'Custom integrations'
+      ],
+      limitations: []
+    },
+    {
+      name: 'Enterprise',
+      price: 'Custom',
+      interval: '',
+      features: [
+        'Unlimited API calls',
+        'Unlimited training',
+        'Unlimited models',
+        '24/7 priority support',
+        'Advanced analytics',
+        'API access',
+        'Custom integrations',
+        'Dedicated account manager',
+        'SLA guarantee'
+      ],
+      limitations: []
+    }
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900">Subscription</h1>
+        <p className="text-gray-600 mt-2">Choose the plan that's right for you</p>
+      </div>
+
+      {/* Current Plan Status */}
+      {currentPlan && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Crown className="h-6 w-6 text-indigo-600" />
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Current Plan</h2>
+                <p className="text-sm text-gray-500">
+                  {currentPlan.tier.charAt(0).toUpperCase() + currentPlan.tier.slice(1)} Plan
+                </p>
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+              currentPlan.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {currentPlan.status}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">API Usage</h3>
+              <div className="bg-gray-200 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-indigo-600 h-2 rounded-full"
+                  style={{ 
+                    width: currentPlan.monthly_token_limit 
+                      ? `${(currentPlan.monthly_tokens_used / currentPlan.monthly_token_limit) * 100}%` 
+                      : '12%' 
+                  }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-600">
+                {currentPlan.monthly_tokens_used?.toLocaleString() || 0} 
+                {currentPlan.monthly_token_limit ? ` / ${currentPlan.monthly_token_limit.toLocaleString()}` : ' / Unlimited'}
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Training Hours</h3>
+              <div className="bg-gray-200 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-green-600 h-2 rounded-full"
+                  style={{ 
+                    width: currentPlan.monthly_training_hours_limit 
+                      ? `${(currentPlan.monthly_training_hours_used / currentPlan.monthly_training_hours_limit) * 100}%` 
+                      : '28%' 
+                  }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-600">
+                {currentPlan.monthly_training_hours_used || 0} hours
+                {currentPlan.monthly_training_hours_limit ? ` / ${currentPlan.monthly_training_hours_limit}` : ' / Unlimited'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pricing Plans */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {plans.map((plan, index) => (
+          <div key={index} className={`bg-white rounded-lg shadow-md p-6 relative ${
+            plan.popular ? 'ring-2 ring-indigo-500' : ''
+          }`}>
+            {plan.popular && (
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                  Most Popular
+                </span>
+              </div>
+            )}
+
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">{plan.name}</h3>
+              <div className="mt-2">
+                <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
+                {plan.interval && (
+                  <span className="text-gray-500">/{plan.interval}</span>
+                )}
+              </div>
+            </div>
+
+            <ul className="space-y-3 mb-6">
+              {plan.features.map((feature, featureIndex) => (
+                <li key={featureIndex} className="flex items-start space-x-3">
+                  <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-700">{feature}</span>
+                </li>
+              ))}
+              {plan.limitations.map((limitation, limitIndex) => (
+                <li key={limitIndex} className="flex items-start space-x-3">
+                  <X className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-500">{limitation}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+              plan.popular
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+            }`}>
+              {currentPlan?.tier === plan.name.toLowerCase() ? 'Current Plan' : 'Choose Plan'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-gray-50 rounded-lg p-6 text-center">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Need a custom solution?</h3>
+        <p className="text-gray-600 mb-4">
+          Contact our sales team for enterprise pricing and custom features.
+        </p>
+        <button className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+          Contact Sales
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default Subscription
