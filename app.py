@@ -53,8 +53,12 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ECHO'] = config.debug
 
-    # Initialize extensions
-    CORS(app, origins=config.api.cors_origins)
+    # Initialize extensions with proper CORS settings for development
+    if config.environment == 'development':
+        CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000', 'http://0.0.0.0:3000'], 
+             supports_credentials=True, allow_headers=['Content-Type', 'Authorization'])
+    else:
+        CORS(app, origins=config.api.cors_origins)
     jwt = JWTManager(app)
 
     # Initialize database
