@@ -32,8 +32,8 @@ def detailed_health():
         disk = psutil.disk_usage('/')
 
         # Get model manager status
-        model_manager = current_app.model_manager
-        loaded_models = model_manager.list_models()
+        model_manager = getattr(current_app, 'model_manager', None)
+        loaded_models = model_manager.list_models() if model_manager else []
 
         return jsonify({
             'status': 'healthy',
@@ -71,7 +71,7 @@ def readiness_check():
     """Readiness check for deployment health checks."""
     try:
         # Check if essential services are ready
-        model_manager = current_app.model_manager
+        model_manager = getattr(current_app, 'model_manager', None)
 
         return jsonify({
             'status': 'ready',

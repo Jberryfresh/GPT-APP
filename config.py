@@ -6,6 +6,7 @@ import json
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 import uuid
+import secrets
 from pathlib import Path
 import logging
 
@@ -76,8 +77,8 @@ class APIConfig:
     host: str = "0.0.0.0"
     port: int = 5000
     debug: bool = False
-    secret_key: str = 'dev-api-secret-key-' + str(uuid.uuid4())[:8]
-    jwt_secret_key: str = 'dev-jwt-secret-key-' + str(uuid.uuid4())[:8]
+    secret_key: str = 'dev-api-secret-key-' + secrets.token_hex(8)
+    jwt_secret_key: str = 'dev-jwt-secret-key-' + secrets.token_hex(8)
     jwt_access_token_expires: int = 3600  # 1 hour
     cors_origins: List[str] = field(default_factory=lambda: ["*"])
     rate_limit_per_minute: int = 60

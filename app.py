@@ -9,7 +9,8 @@ from pathlib import Path
 from config import get_config
 
 # Import database
-from database import db, migrate, init_db, create_admin_user
+from database import db, migrate, init_db
+from auth import create_admin_user
 
 # Import API blueprints
 from auth import auth_bp
@@ -60,7 +61,12 @@ def create_app():
     init_db(app)
 
     # Initialize model manager
-    app.model_manager = ModelManager()
+    try:
+        app.model_manager = ModelManager()
+        logger.info("Model manager initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize model manager: {e}")
+        app.model_manager = None
 
     # Register API blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/v1')
@@ -115,8 +121,12 @@ def create_app():
 
 def main():
     """Main entry point."""
-    app = create_app()
-    config = get_config()
+    try:
+        app = create_app()
+        config = get_config()
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise
 
     # Create admin user if it doesn't exist (development only)
     if config.environment == 'development':
