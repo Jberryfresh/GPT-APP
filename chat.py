@@ -26,163 +26,8 @@ logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
 
-@chat_bp.route('/chat/completions', methods=['POST'], endpoint='chat_completions')
+@chat_bp.route('/chat/completions', methods=['POST'])
 def chat_completions():
-    """OpenAI-compatible chat completions endpoint."""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'success': False,
-                'error': 'No JSON data provided'
-            }), 400
-
-        messages = data.get('messages', [])
-        model_id = data.get('model')
-
-        if not messages:
-            return jsonify({
-                'success': False,
-                'error': 'messages are required'
-            }), 400
-
-        # Configure inference
-        config = InferenceConfig(
-            max_new_tokens=data.get('max_tokens', 256),
-            temperature=data.get('temperature', 0.7),
-            top_p=data.get('top_p', 0.9)
-        )
-
-        # Get model manager
-        model_manager = getattr(current_app, 'model_manager', None)
-        if not model_manager:
-            return jsonify({
-                'success': False,
-                'error': 'Model manager not available'
-            }), 503
-
-        # Get the last user message
-        user_message = ""
-        for msg in reversed(messages):
-            if msg.get('role') == 'user':
-                user_message = msg.get('content', '')
-                break
-
-        if not user_message:
-            return jsonify({
-                'success': False,
-                'error': 'No user message found'
-            }), 400
-
-        # Generate conversation ID
-        conversation_id = get_jwt_identity() or 'anonymous'
-
-        # Generate response
-        try:
-            response = model_manager.chat(user_message, conversation_id, model_id, config)
-        except Exception as e:
-            logger.error(f"Model inference error: {e}")
-            response = "I apologize, but I'm having trouble processing your request right now."
-
-        return jsonify({
-            'id': str(uuid.uuid4()),
-            'object': 'chat.completion',
-            'created': int(datetime.now().timestamp()),
-            'model': model_id or 'default',
-            'choices': [{
-                'index': 0,
-                'message': {
-                    'role': 'assistant',
-                    'content': response
-                },
-                'finish_reason': 'stop'
-            }],
-            'usage': {
-                'prompt_tokens': len(user_message.split()),
-                'completion_tokens': len(response.split()),
-                'total_tokens': len(user_message.split()) + len(response.split())
-            }
-        })
-
-    except Exception as e:
-        logger.error(f"Error in chat completions: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@chat_bp.route('/chat/conversations', methods=['GET'])
-@jwt_required()
-def chat_completions():
-    """OpenAI-compatible chat completions endpoint."""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'success': False,
-                'error': 'No JSON data provided'
-            }), 400
-
-        messages = data.get('messages', [])
-        model_id = data.get('model', 'default')
-
-        if not messages:
-            return jsonify({
-                'success': False,
-                'error': 'messages are required'
-            }), 400
-
-        # Extract the latest user message
-        latest_message = messages[-1].get('content', '') if messages else ''
-
-        # Configure inference
-        from model_inference import InferenceConfig
-        config = InferenceConfig(
-            max_new_tokens=data.get('max_tokens', 256),
-            temperature=data.get('temperature', 0.7),
-            top_p=data.get('top_p', 0.9)
-        )
-
-        # Get model manager
-        model_manager = current_app.model_manager
-
-        # Generate conversation ID
-        conversation_id = get_jwt_identity() or str(uuid.uuid4())
-
-        # Generate response
-        response_text = model_manager.chat(latest_message, conversation_id, model_id, config)
-
-        # Return OpenAI-compatible format
-        return jsonify({
-            'id': f'chatcmpl-{uuid.uuid4()}',
-            'object': 'chat.completion',
-            'created': int(datetime.now().timestamp()),
-            'model': model_id,
-            'choices': [{
-                'index': 0,
-                'message': {
-                    'role': 'assistant',
-                    'content': response_text
-                },
-                'finish_reason': 'stop'
-            }],
-            'usage': {
-                'prompt_tokens': len(latest_message.split()),
-                'completion_tokens': len(response_text.split()),
-                'total_tokens': len(latest_message.split()) + len(response_text.split())
-            }
-        })
-
-    except Exception as e:
-        logger.error(f"Error in chat completions: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@chat_bp.route('/chat/conversations', methods=['GET'])
-@jwt_required()
-def get_conversations():
     """OpenAI-compatible chat completions endpoint."""
     try:
         data = request.get_json()
@@ -230,12 +75,18 @@ def get_conversations():
         config = InferenceConfig(
             max_new_tokens=max_tokens,
             temperature=temperature,
-            top_p=top_p,
-            top_k=top_k
+            top_p=top_p
         )
 
         # Get model manager
-        model_manager = current_app.model_manager
+        model_manager = getattr(current_app, 'model_manager', None)
+        if not model_manager:
+            return jsonify({
+                'error': {
+                    'message': 'Model manager not available',
+                    'type': 'service_unavailable'
+                }
+            }), 503
 
         # Generate conversation ID
         conversation_id = get_jwt_identity() or 'anonymous'
@@ -404,8 +255,9 @@ def list_conversations():
 def clear_conversation(conversation_id):
     """Clear a conversation."""
     try:
-        model_manager = current_app.model_manager
-        model_manager.clear_conversation(conversation_id)
+        model_manager = getattr(current_app, 'model_manager', None)
+        if model_manager:
+            model_manager.clear_conversation(conversation_id)
 
         return jsonify({
             'success': True,
@@ -448,7 +300,12 @@ def simple_chat():
         )
 
         # Get model manager
-        model_manager = current_app.model_manager
+        model_manager = getattr(current_app, 'model_manager', None)
+        if not model_manager:
+            return jsonify({
+                'success': False,
+                'error': 'Model manager not available'
+            }), 503
 
         # Generate conversation ID
         conversation_id = get_jwt_identity() or 'anonymous'
