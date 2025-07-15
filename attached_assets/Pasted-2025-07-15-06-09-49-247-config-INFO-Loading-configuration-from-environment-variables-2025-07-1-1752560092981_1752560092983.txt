@@ -1,0 +1,23 @@
+2025-07-15 06:09:49,247 - config - INFO - Loading configuration from environment variables
+2025-07-15 06:09:49,268 - database - INFO - Database initialized successfully
+2025-07-15 06:09:49,422 - database - ERROR - Error creating admin user: (sqlite3.IntegrityError) NOT NULL constraint failed: subscriptions.user_id
+[SQL: INSERT INTO subscriptions (id, user_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, monthly_token_limit, monthly_tokens_used, monthly_training_hours_limit, monthly_training_hours_used, can_train_models, can_use_api, max_models, priority_support, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('607baeedf2a24e529d7b8dbafe2b87c2', None, 'enterprise', 'active', None, None, '2025-07-15 06:09:49.416439', '2026-07-15 06:09:49.416444', None, 0, None, 0.0, 1, 1, 100, 1, '2025-07-15 06:09:49.421860', '2025-07-15 06:09:49.421867')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-07-15 06:09:49,422 - __main__ - WARNING - Admin user creation skipped: (sqlite3.IntegrityError) NOT NULL constraint failed: subscriptions.user_id
+[SQL: INSERT INTO subscriptions (id, user_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, monthly_token_limit, monthly_tokens_used, monthly_training_hours_limit, monthly_training_hours_used, can_train_models, can_use_api, max_models, priority_support, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('607baeedf2a24e529d7b8dbafe2b87c2', None, 'enterprise', 'active', None, None, '2025-07-15 06:09:49.416439', '2026-07-15 06:09:49.416444', None, 0, None, 0.0, 1, 1, 100, 1, '2025-07-15 06:09:49.421860', '2025-07-15 06:09:49.421867')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-07-15 06:09:49,423 - __main__ - INFO - Starting Custom GPT API on 0.0.0.0:5000
+2025-07-15 06:09:49,423 - __main__ - INFO - Environment: development
+2025-07-15 06:09:49,423 - __main__ - INFO - Debug mode: False
+2025-07-15 06:09:49,423 - __main__ - INFO - Database: sqlite:///custom_gpt.db
+ * Serving Flask app 'app'
+ * Debug mode: off
+2025-07-15 06:09:49,431 - werkzeug - INFO - WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.128.142:5000
+2025-07-15 06:09:49,431 - werkzeug - INFO - Press CTRL+C to quit
+2025-07-15 06:09:49,937 - werkzeug - INFO - 172.31.128.142 - - [15/Jul/2025 06:09:49] "GET / HTTP/1.1" 200 -
+2025-07-15 06:09:50,063 - werkzeug - INFO - 172.31.128.142 - - [15/Jul/2025 06:09:50] "GET /src/main.jsx HTTP/1.1" 200 -
