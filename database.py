@@ -372,7 +372,7 @@ class UsageRecord(db.Model, TimestampMixin):
     cost_cents = db.Column(db.Integer, default=0)  # Cost in cents
     
     # Request metadata
-    request_metadata = db.Column(JSON)
+    req_metadata = db.Column(JSON)
     
     def to_dict(self):
         """Convert to dictionary."""
@@ -382,7 +382,7 @@ class UsageRecord(db.Model, TimestampMixin):
             'tokens_used': self.tokens_used,
             'compute_time_seconds': self.compute_time_seconds,
             'cost_cents': self.cost_cents,
-            'request_metadata': self.request_metadata,
+            'req_metadata': self.req_metadata,
             'created_at': self.created_at.isoformat()
         }
 
@@ -406,7 +406,7 @@ class AuditLog(db.Model, TimestampMixin):
     # Event data
     old_values = db.Column(JSON)
     new_values = db.Column(JSON)
-    event_metadata = db.Column(JSON)
+    event_meta = db.Column(JSON)
     
     # Status
     success = db.Column(db.Boolean, default=True)
