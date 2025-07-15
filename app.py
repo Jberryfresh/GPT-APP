@@ -19,6 +19,7 @@ from training import training_bp
 from billing import billing_bp
 from health import health_bp
 from api_stats import api_stats_bp
+from monitoring import monitoring_bp
 
 # Import model manager
 from model_inference import ModelManager
@@ -80,6 +81,7 @@ def create_app():
         app.register_blueprint(billing_bp, url_prefix='/api/v1')
         app.register_blueprint(training_bp, url_prefix='/api/v1')
         app.register_blueprint(api_stats_bp, url_prefix='/api/v1')
+        app.register_blueprint(monitoring_bp, url_prefix='/api/v1')
     except AssertionError as e:
         logger.error(f"Blueprint registration error: {e}")
         # Clear existing rules and re-register
@@ -91,6 +93,7 @@ def create_app():
         app.register_blueprint(billing_bp, url_prefix='/api/v1')
         app.register_blueprint(training_bp, url_prefix='/api/v1')
         app.register_blueprint(api_stats_bp, url_prefix='/api/v1')
+        app.register_blueprint(monitoring_bp, url_prefix='/api/v1')
 
     # Serve React frontend
     @app.route('/')

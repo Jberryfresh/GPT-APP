@@ -26,7 +26,15 @@ class DatabaseConfig:
     @property
     def url(self) -> str:
         """Get database URL."""
+        # If we have a direct URL (from Replit service), use it
+        if hasattr(self, '_url') and self._url:
+            return self._url
         return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
+    
+    @url.setter
+    def url(self, value: str):
+        """Set database URL directly."""
+        self._url = value
 
 @dataclass
 class RedisConfig:
@@ -147,12 +155,18 @@ class AppConfig:
         config.debug = os.getenv("DEBUG", "false").lower() == "true"
         config.testing = os.getenv("TESTING", "false").lower() == "true"
 
-        # Database configuration
-        config.database.host = os.getenv("DB_HOST", config.database.host)
-        config.database.port = int(os.getenv("DB_PORT", str(config.database.port)))
-        config.database.database = os.getenv("DB_NAME", config.database.database)
-        config.database.username = os.getenv("DB_USER", config.database.username)
-        config.database.password = os.getenv("DB_PASSWORD", config.database.password)
+        # Database configuration - Use Replit Database service
+        # If REPLIT_DB_URL is provided (Replit's managed database), use it
+        replit_db_url = os.getenv("REPLIT_DB_URL")
+        if replit_db_url:
+            config.database.url = replit_db_url
+        else:
+            # Fallback to individual components
+            config.database.host = os.getenv("DB_HOST", config.database.host)
+            config.database.port = int(os.getenv("DB_PORT", str(config.database.port)))
+            config.database.database = os.getenv("DB_NAME", config.database.database)
+            config.database.username = os.getenv("DB_USER", config.database.username)
+            config.database.password = os.getenv("DB_PASSWORD", config.database.password)
 
         # Redis configuration
         config.redis.host = os.getenv("REDIS_HOST", config.redis.host)

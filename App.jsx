@@ -8,6 +8,7 @@ import Training from './Training';
 import DataIngestion from './DataIngestion';
 import Settings from './Settings';
 import Subscription from './Subscription';
+import MonitoringDashboard from './MonitoringDashboard';
 import Navbar from './Navbar';
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
           <Route path="/data" element={<DataIngestion />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/subscription" element={<Subscription />} />
+          <Route path="/monitoring" element={<MonitoringDashboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

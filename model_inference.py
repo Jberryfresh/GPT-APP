@@ -1,5 +1,5 @@
 """
-The code has been modified to handle missing dependencies and provide a fallback ModelManager.
+The code has been modified to handle missing dependencies and provide a fallback ModelManager, along with added performance monitoring and error tracking.
 """
 """
 Model Management and Inference Module
@@ -420,7 +420,8 @@ except ImportError as e:
     torch = None
 
 import logging
-from typing import Dict, List, Optional, Any
+import time
+from typing import Dict, List, Optional, Any, Generator
 from dataclasses import dataclass
 import json
 import os
@@ -432,6 +433,12 @@ try:
     import psutil
 except ImportError:
     psutil = None
+
+# Import monitoring
+try:
+    from monitoring import model_monitor
+except ImportError:
+    model_monitor = None
 
 class ModelManager:
     """Manages multiple AI models with memory-efficient loading and caching."""
