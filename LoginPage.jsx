@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 
 function LoginPage({ onLogin }) {
@@ -8,9 +7,9 @@ function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
     try {
       const response = await fetch('/api/v1/auth/login', {
@@ -18,22 +17,23 @@ function LoginPage({ onLogin }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
-      })
+        body: JSON.stringify({ email, password }),
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
-      if (data.success) {
-        onLogin(data.user, data.access_token)
+      if (response.ok) {
+        localStorage.setItem('authToken', data.access_token);
+        onLogin();
       } else {
-        setError(data.error || 'Login failed')
+        setError(data.message || 'Login failed');
       }
     } catch (error) {
-      setError('Network error. Please try again.')
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false)
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center">
