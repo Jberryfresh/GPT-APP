@@ -9,6 +9,9 @@ from pathlib import Path
 # Import configuration
 from config import get_config
 
+# Import database
+from database import db, migrate, init_db, create_admin_user
+
 # Import API blueprints
 from health import health_bp
 from chat import chat_bp
@@ -39,9 +42,22 @@ def create_app():
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = config.api.jwt_access_token_expires
     app.config['MAX_CONTENT_LENGTH'] = config.api.max_request_size
     
+    # Database configuration
+    if config.environment == 'production':
+        app.config['SQLALCHEMY_DATABASE_URI'] = config.database.url
+    else:
+        # Use SQLite for development
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///custom_gpt.db'
+    
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ECHO'] = config.debug
+    
     # Initialize extensions
     CORS(app, origins=config.api.cors_origins)
     jwt = JWTManager(app)
+    
+    # Initialize database
+    init_db(app)
     
     # Initialize model manager
     app.model_manager = ModelManager()
@@ -101,9 +117,23 @@ def main():
     app = create_app()
     config = get_config()
     
+    # Create admin user if it doesn't exist (development only)
+    if config.environment == 'development':
+        with app.app_context():
+            try:
+                admin = create_admin_user(
+                    email='admin@example.com',
+                    username='admin',
+                    password='admin123'
+                )
+                logger.info(f"Admin user ready: {admin.email} (API Key: {admin.api_key})")
+            except Exception as e:
+                logger.warning(f"Admin user creation skipped: {e}")
+    
     logger.info(f"Starting Custom GPT API on {config.api.host}:{config.api.port}")
     logger.info(f"Environment: {config.environment}")
     logger.info(f"Debug mode: {config.debug}")
+    logger.info(f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
     
     app.run(
         host=config.api.host,
