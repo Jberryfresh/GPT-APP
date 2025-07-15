@@ -75,8 +75,8 @@ export default function Chat() {
         },
         body: JSON.stringify({
           message: currentInput,
-          max_tokens: 256,
-          temperature: 0.7
+          max_tokens: chatSettings.maxTokens,
+          temperature: chatSettings.temperature
         })
       });
 
@@ -94,7 +94,7 @@ export default function Chat() {
         const errorMessage = { 
           id: Date.now() + 1,
           role: 'assistant', 
-          content: `Error: ${data.error}`,
+          content: `Error: ${data.error || 'Unknown error occurred'}`,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -104,7 +104,7 @@ export default function Chat() {
       const errorMessage = { 
         id: Date.now() + 1,
         role: 'assistant', 
-        content: 'Sorry, there was an error processing your message.',
+        content: 'Sorry, there was an error connecting to the API. Please check your connection and try again.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
