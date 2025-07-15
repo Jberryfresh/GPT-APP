@@ -454,6 +454,7 @@ def create_admin_user(email, username, password):
         user.generate_api_key()
         
         db.session.add(user)
+        db.session.commit()  # Commit user first to get the ID
         
         # Create admin subscription
         subscription = Subscription(
