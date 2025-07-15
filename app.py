@@ -18,6 +18,7 @@ from chat import chat_bp
 from models import models_bp
 from training import training_bp
 from billing import billing_bp
+from auth import auth_bp
 
 # Import model manager
 from model_inference import ModelManager
@@ -64,6 +65,7 @@ def create_app():
     
     # Register API blueprints
     app.register_blueprint(health_bp, url_prefix='/api/v1')
+    app.register_blueprint(auth_bp, url_prefix='/api/v1')
     app.register_blueprint(chat_bp, url_prefix='/api/v1')
     app.register_blueprint(models_bp, url_prefix='/api/v1')
     app.register_blueprint(training_bp, url_prefix='/api/v1')
