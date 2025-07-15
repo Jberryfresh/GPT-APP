@@ -15,6 +15,56 @@ logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
+def create_admin_user(email, username, password):
+    """Create an admin user - moved from database.py for proper import."""
+    try:
+        existing_user = User.query.filter(
+            (User.email == email) | (User.username == username)
+        ).first()
+        
+        if existing_user:
+            logger.warning(f"User already exists: {email}")
+            return existing_user
+        
+        user = User(
+            email=email,
+            username=username,
+            is_active=True,
+            is_verified=True,
+            email_verified_at=datetime.utcnow()
+        )
+        user.set_password(password)
+        user.generate_api_key()
+        
+        db.session.add(user)
+        db.session.commit()  # Commit user first to get the ID
+        
+        # Create admin subscription
+        subscription = Subscription(
+            user_id=user.id,
+            tier='enterprise',
+            status='active',
+            monthly_token_limit=None,  # Unlimited
+            monthly_training_hours_limit=None,  # Unlimited
+            can_train_models=True,
+            can_use_api=True,
+            max_models=100,
+            priority_support=True,
+            current_period_start=datetime.utcnow(),
+            current_period_end=datetime.utcnow() + timedelta(days=365)
+        )
+        
+        db.session.add(subscription)
+        db.session.commit()
+        
+        logger.info(f"Admin user created: {email}")
+        return user
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating admin user: {e}")
+        raise
+
 @auth_bp.route('/auth/login', methods=['POST'])
 def login():
     """User login endpoint."""
