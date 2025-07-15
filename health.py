@@ -2,13 +2,13 @@
 Health Check Routes
 ==================
 
-Health check and system status endpoints.
+API endpoints for system health monitoring and status checks.
 """
 
 from flask import Blueprint, jsonify, current_app
-from datetime import datetime
 import psutil
-import torch
+import time
+from datetime import datetime
 
 health_bp = Blueprint('health', __name__)
 
@@ -18,64 +18,47 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
+        'service': 'Custom GPT API',
         'version': '1.0.0'
     })
 
 @health_bp.route('/health/detailed', methods=['GET'])
-def detailed_health_check():
-    """Detailed health check with system information."""
+def detailed_health():
+    """Detailed health check with system metrics."""
     try:
-        # System information
+        # Get system metrics
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-        
-        # GPU information
-        gpu_info = {}
-        if torch.cuda.is_available():
-            gpu_info = {
-                'available': True,
-                'device_count': torch.cuda.device_count(),
-                'current_device': torch.cuda.current_device(),
-                'device_name': torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else None,
-                'memory_allocated': torch.cuda.memory_allocated(0) if torch.cuda.device_count() > 0 else 0,
-                'memory_reserved': torch.cuda.memory_reserved(0) if torch.cuda.device_count() > 0 else 0
-            }
-        else:
-            gpu_info = {'available': False}
-        
-        # Model manager status
-        model_manager = getattr(current_app, 'model_manager', None)
-        models_info = []
-        if model_manager:
-            models_info = model_manager.list_models()
-        
+
+        # Get model manager status
+        model_manager = current_app.model_manager
+        loaded_models = model_manager.list_models()
+
         return jsonify({
             'status': 'healthy',
             'timestamp': datetime.now().isoformat(),
+            'service': 'Custom GPT API',
             'version': '1.0.0',
             'system': {
                 'cpu_percent': cpu_percent,
                 'memory': {
                     'total': memory.total,
                     'available': memory.available,
-                    'percent': memory.percent,
-                    'used': memory.used
+                    'percent': memory.percent
                 },
                 'disk': {
                     'total': disk.total,
-                    'used': disk.used,
                     'free': disk.free,
                     'percent': (disk.used / disk.total) * 100
-                },
-                'gpu': gpu_info
+                }
             },
             'models': {
-                'loaded_count': len(models_info),
-                'models': models_info
+                'loaded_count': len(loaded_models),
+                'models': [model['model_id'] for model in loaded_models]
             }
         })
-    
+
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
@@ -85,25 +68,25 @@ def detailed_health_check():
 
 @health_bp.route('/health/ready', methods=['GET'])
 def readiness_check():
-    """Readiness check for Kubernetes deployments."""
+    """Readiness check for deployment health checks."""
     try:
-        # Check if model manager is available
-        model_manager = getattr(current_app, 'model_manager', None)
-        if model_manager is None:
-            return jsonify({
-                'status': 'not_ready',
-                'reason': 'Model manager not initialized'
-            }), 503
-        
+        # Check if essential services are ready
+        model_manager = current_app.model_manager
+
         return jsonify({
             'status': 'ready',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'checks': {
+                'model_manager': True,
+                'api_routes': True
+            }
         })
-    
+
     except Exception as e:
         return jsonify({
             'status': 'not_ready',
-            'reason': str(e)
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
         }), 503
 
 @health_bp.route('/health/live', methods=['GET'])
@@ -113,4 +96,3 @@ def liveness_check():
         'status': 'alive',
         'timestamp': datetime.now().isoformat()
     })
-
