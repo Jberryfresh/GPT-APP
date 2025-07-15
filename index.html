@@ -53,7 +53,6 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
         const { BrowserRouter: Router, Routes, Route, Navigate, Link, useLocation } = ReactRouterDOM;
-        const { createRoot } = ReactDOM;
         
         // Icons from lucide-react
         const { 
@@ -61,7 +60,8 @@
             CreditCard, LogOut, User, Users, TrendingUp, Brain,
             Activity, CheckCircle, Clock, PlayCircle, BarChart3,
             Upload, FileText, Globe, Key, Bell, Shield, Trash2,
-            Plus, Search, Filter, Download, RefreshCw, Eye, EyeOff
+            Plus, Search, Filter, Download, RefreshCw, Eye, EyeOff,
+            Send, PlusCircle, Save, AlertCircle
         } = lucide;
 
         // Navbar Component
@@ -466,94 +466,385 @@
             ]);
         }
 
-        // Placeholder components for other pages
+        // Chat Component
         function Chat() {
+            const [messages, setMessages] = useState([
+                { id: 1, text: 'Hello! How can I help you today?', sender: 'ai', timestamp: new Date() }
+            ]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim() || loading) return;
+
+                const userMessage = {
+                    id: Date.now(),
+                    text: inputMessage,
+                    sender: 'user',
+                    timestamp: new Date()
+                };
+
+                setMessages(prev => [...prev, userMessage]);
+                setInputMessage('');
+                setLoading(true);
+
+                try {
+                    const token = localStorage.getItem('access_token');
+                    const response = await fetch('/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            message: inputMessage,
+                            model: 'gpt-3.5-turbo'
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const aiMessage = {
+                            id: Date.now() + 1,
+                            text: data.response,
+                            sender: 'ai',
+                            timestamp: new Date()
+                        };
+                        setMessages(prev => [...prev, aiMessage]);
+                    } else {
+                        const errorMessage = {
+                            id: Date.now() + 1,
+                            text: 'Sorry, I encountered an error. Please try again.',
+                            sender: 'ai',
+                            timestamp: new Date()
+                        };
+                        setMessages(prev => [...prev, errorMessage]);
+                    }
+                } catch (error) {
+                    const errorMessage = {
+                        id: Date.now() + 1,
+                        text: 'Network error. Please check your connection.',
+                        sender: 'ai',
+                        timestamp: new Date()
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                }
+
+                setLoading(false);
+            };
+
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-6"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Chat Interface'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Chat functionality coming soon...')
+                React.createElement('div', {
+                    key: 'header'
+                }, [
+                    React.createElement('h1', {
+                        className: "text-3xl font-bold text-gray-900",
+                        key: 'title'
+                    }, 'Chat Interface'),
+                    React.createElement('p', {
+                        className: "text-gray-600 mt-2",
+                        key: 'subtitle'
+                    }, 'Interact with your custom AI models')
+                ]),
+                React.createElement('div', {
+                    className: "card",
+                    key: 'chat-container'
+                }, [
+                    React.createElement('div', {
+                        className: "h-96 overflow-y-auto p-6 space-y-4",
+                        key: 'messages'
+                    }, messages.map(message => 
+                        React.createElement('div', {
+                            key: message.id,
+                            className: `flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`
+                        }, React.createElement('div', {
+                            className: `max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                message.sender === 'user' 
+                                    ? 'bg-indigo-600 text-white' 
+                                    : 'bg-gray-100 text-gray-900'
+                            }`
+                        }, [
+                            React.createElement('p', { key: 'text' }, message.text),
+                            React.createElement('p', {
+                                key: 'timestamp',
+                                className: `text-xs mt-1 ${
+                                    message.sender === 'user' ? 'text-indigo-200' : 'text-gray-500'
+                                }`
+                            }, message.timestamp.toLocaleTimeString())
+                        ]))
+                    )),
+                    React.createElement('form', {
+                        className: "border-t p-4",
+                        onSubmit: handleSendMessage,
+                        key: 'input-form'
+                    }, React.createElement('div', {
+                        className: "flex space-x-4"
+                    }, [
+                        React.createElement('input', {
+                            type: "text",
+                            value: inputMessage,
+                            onChange: (e) => setInputMessage(e.target.value),
+                            placeholder: "Type your message...",
+                            className: "flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500",
+                            disabled: loading,
+                            key: 'input'
+                        }),
+                        React.createElement('button', {
+                            type: "submit",
+                            disabled: loading || !inputMessage.trim(),
+                            className: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed",
+                            key: 'send-button'
+                        }, [
+                            React.createElement(Send, { className: "h-4 w-4", key: 'icon' })
+                        ])
+                    ]))
+                ])
             ]);
         }
 
+        // Models Component
         function Models() {
+            const [models, setModels] = useState([
+                { id: 1, name: 'gpt-3.5-turbo', status: 'active', type: 'OpenAI', lastUsed: '2 hours ago' }
+            ]);
+
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-8"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Model Management'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Model management features coming soon...')
+                React.createElement('div', {
+                    className: "flex justify-between items-center",
+                    key: 'header'
+                }, [
+                    React.createElement('div', { key: 'title-section' }, [
+                        React.createElement('h1', {
+                            className: "text-3xl font-bold text-gray-900",
+                            key: 'title'
+                        }, 'Models'),
+                        React.createElement('p', {
+                            className: "text-gray-600 mt-2",
+                            key: 'subtitle'
+                        }, 'Manage your AI models and their configurations')
+                    ]),
+                    React.createElement('button', {
+                        className: "flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700",
+                        key: 'add-button'
+                    }, [
+                        React.createElement(Plus, { className: "h-4 w-4", key: 'icon' }),
+                        React.createElement('span', { key: 'text' }, 'Add Model')
+                    ])
+                ]),
+                React.createElement('div', {
+                    className: "card",
+                    key: 'models-table'
+                }, React.createElement('div', {
+                    className: "overflow-x-auto"
+                }, React.createElement('table', {
+                    className: "min-w-full divide-y divide-gray-200"
+                }, [
+                    React.createElement('thead', {
+                        className: "bg-gray-50",
+                        key: 'thead'
+                    }, React.createElement('tr', {}, [
+                        React.createElement('th', {
+                            className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
+                            key: 'name'
+                        }, 'Model Name'),
+                        React.createElement('th', {
+                            className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
+                            key: 'status'
+                        }, 'Status'),
+                        React.createElement('th', {
+                            className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
+                            key: 'type'
+                        }, 'Type'),
+                        React.createElement('th', {
+                            className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
+                            key: 'last-used'
+                        }, 'Last Used')
+                    ])),
+                    React.createElement('tbody', {
+                        className: "bg-white divide-y divide-gray-200",
+                        key: 'tbody'
+                    }, models.map(model => 
+                        React.createElement('tr', {
+                            key: model.id,
+                            className: "hover:bg-gray-50"
+                        }, [
+                            React.createElement('td', {
+                                className: "px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900",
+                                key: 'name'
+                            }, model.name),
+                            React.createElement('td', {
+                                className: "px-6 py-4 whitespace-nowrap",
+                                key: 'status'
+                            }, React.createElement('span', {
+                                className: `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                    model.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`
+                            }, model.status)),
+                            React.createElement('td', {
+                                className: "px-6 py-4 whitespace-nowrap text-sm text-gray-500",
+                                key: 'type'
+                            }, model.type),
+                            React.createElement('td', {
+                                className: "px-6 py-4 whitespace-nowrap text-sm text-gray-500",
+                                key: 'last-used'
+                            }, model.lastUsed)
+                        ])
+                    ))
+                ])))
             ]);
         }
 
+        // Training Component
         function Training() {
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-8"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Training Pipeline'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Training features coming soon...')
+                React.createElement('div', {
+                    key: 'header'
+                }, [
+                    React.createElement('h1', {
+                        className: "text-3xl font-bold text-gray-900",
+                        key: 'title'
+                    }, 'Training Pipeline'),
+                    React.createElement('p', {
+                        className: "text-gray-600 mt-2",
+                        key: 'subtitle'
+                    }, 'Train and fine-tune your custom AI models')
+                ]),
+                React.createElement('div', {
+                    className: "card p-6 text-center",
+                    key: 'content'
+                }, [
+                    React.createElement(BookOpen, {
+                        className: "mx-auto h-16 w-16 text-gray-400 mb-4",
+                        key: 'icon'
+                    }),
+                    React.createElement('h3', {
+                        className: "text-lg font-medium text-gray-900 mb-2",
+                        key: 'title'
+                    }, 'Training Features Coming Soon'),
+                    React.createElement('p', {
+                        className: "text-gray-600",
+                        key: 'description'
+                    }, 'Advanced model training and fine-tuning capabilities will be available here.')
+                ])
             ]);
         }
 
+        // Data Ingestion Component
         function DataIngestion() {
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-8"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Data Ingestion'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Data management features coming soon...')
+                React.createElement('div', {
+                    key: 'header'
+                }, [
+                    React.createElement('h1', {
+                        className: "text-3xl font-bold text-gray-900",
+                        key: 'title'
+                    }, 'Data Ingestion'),
+                    React.createElement('p', {
+                        className: "text-gray-600 mt-2",
+                        key: 'subtitle'
+                    }, 'Upload and manage your training data')
+                ]),
+                React.createElement('div', {
+                    className: "card p-6 text-center",
+                    key: 'content'
+                }, [
+                    React.createElement(Database, {
+                        className: "mx-auto h-16 w-16 text-gray-400 mb-4",
+                        key: 'icon'
+                    }),
+                    React.createElement('h3', {
+                        className: "text-lg font-medium text-gray-900 mb-2",
+                        key: 'title'
+                    }, 'Data Management Coming Soon'),
+                    React.createElement('p', {
+                        className: "text-gray-600",
+                        key: 'description'
+                    }, 'Upload, process, and manage your training datasets here.')
+                ])
             ]);
         }
 
+        // Settings Component
         function Settings() {
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-8"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Settings'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Settings panel coming soon...')
+                React.createElement('div', {
+                    key: 'header'
+                }, [
+                    React.createElement('h1', {
+                        className: "text-3xl font-bold text-gray-900",
+                        key: 'title'
+                    }, 'Settings'),
+                    React.createElement('p', {
+                        className: "text-gray-600 mt-2",
+                        key: 'subtitle'
+                    }, 'Configure your system preferences')
+                ]),
+                React.createElement('div', {
+                    className: "card p-6 text-center",
+                    key: 'content'
+                }, [
+                    React.createElement(Settings, {
+                        className: "mx-auto h-16 w-16 text-gray-400 mb-4",
+                        key: 'icon'
+                    }),
+                    React.createElement('h3', {
+                        className: "text-lg font-medium text-gray-900 mb-2",
+                        key: 'title'
+                    }, 'Settings Panel Coming Soon'),
+                    React.createElement('p', {
+                        className: "text-gray-600",
+                        key: 'description'
+                    }, 'System configuration and user preferences will be available here.')
+                ])
             ]);
         }
 
+        // Subscription Component
         function Subscription() {
             return React.createElement('div', {
-                className: "text-center py-8"
+                className: "space-y-8"
             }, [
-                React.createElement('h1', {
-                    className: "text-2xl font-bold text-gray-900",
-                    key: 'title'
-                }, 'Subscription'),
-                React.createElement('p', {
-                    className: "text-gray-600 mt-2",
-                    key: 'subtitle'
-                }, 'Subscription management coming soon...')
+                React.createElement('div', {
+                    key: 'header'
+                }, [
+                    React.createElement('h1', {
+                        className: "text-3xl font-bold text-gray-900",
+                        key: 'title'
+                    }, 'Subscription'),
+                    React.createElement('p', {
+                        className: "text-gray-600 mt-2",
+                        key: 'subtitle'
+                    }, 'Manage your subscription and billing')
+                ]),
+                React.createElement('div', {
+                    className: "card p-6 text-center",
+                    key: 'content'
+                }, [
+                    React.createElement(CreditCard, {
+                        className: "mx-auto h-16 w-16 text-gray-400 mb-4",
+                        key: 'icon'
+                    }),
+                    React.createElement('h3', {
+                        className: "text-lg font-medium text-gray-900 mb-2",
+                        key: 'title'
+                    }, 'Subscription Management Coming Soon'),
+                    React.createElement('p', {
+                        className: "text-gray-600",
+                        key: 'description'
+                    }, 'Billing and subscription management features will be available here.')
+                ])
             ]);
         }
 
@@ -673,7 +964,7 @@
         }
 
         // Render the app
-        const root = createRoot(document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
     </script>
 </body>
