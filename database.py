@@ -370,8 +370,8 @@ class UsageRecord(db.Model, TimestampMixin):
     # Billing
     cost_cents = db.Column(db.Integer, default=0)  # Cost in cents
     
-    # Metadata
-    metadata = db.Column(JSONB)
+    # Request metadata
+    request_metadata = db.Column(JSONB)
     
     def to_dict(self):
         """Convert to dictionary."""
@@ -404,7 +404,7 @@ class AuditLog(db.Model, TimestampMixin):
     # Event data
     old_values = db.Column(JSONB)
     new_values = db.Column(JSONB)
-    metadata = db.Column(JSONB)
+    event_metadata = db.Column(JSONB)
     
     # Status
     success = db.Column(db.Boolean, default=True)
