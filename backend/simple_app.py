@@ -946,8 +946,7 @@ def evaluate_model(model_id):
             ]
         }
 
-        return jsonify(```json
-evaluation_results)
+        return jsonify(evaluation_results)
     except Exception as e:
         logger.error(f"Error evaluating model: {str(e)}")
         return jsonify({'error': str(e)}), 500
