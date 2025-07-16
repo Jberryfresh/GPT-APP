@@ -1,5 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory, make_response
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity, create_access_token
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
 import logging
@@ -12,12 +14,21 @@ import time
 import csv
 from io import StringIO
 from io import BytesIO
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Security configuration
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+
+# Initialize JWT manager
+jwt = JWTManager(app)
 
 # Simple CORS setup for development
 CORS(app, origins=['*'], supports_credentials=True)
@@ -45,13 +56,70 @@ def init_database():
     try:
         cursor = conn.cursor()
 
-        # Create users table
+        # Create users table with enhanced authentication fields
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 email VARCHAR(255) UNIQUE NOT NULL,
+                username VARCHAR(80) UNIQUE NOT NULL,
                 password_hash VARCHAR(255) NOT NULL,
+                first_name VARCHAR(100),
+                last_name VARCHAR(100),
+                is_active BOOLEAN DEFAULT TRUE,
+                is_verified BOOLEAN DEFAULT FALSE,
+                email_verified_at TIMESTAMP,
+                last_login_at TIMESTAMP,
+                failed_login_attempts INTEGER DEFAULT 0,
+                locked_until TIMESTAMP,
+                api_key VARCHAR(255) UNIQUE,
+                api_key_created_at TIMESTAMP,
                 subscription_tier VARCHAR(50) DEFAULT 'free',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create subscriptions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                tier VARCHAR(50) DEFAULT 'free',
+                status VARCHAR(50) DEFAULT 'active',
+                monthly_token_limit BIGINT DEFAULT 10000,
+                monthly_tokens_used BIGINT DEFAULT 0,
+                monthly_training_hours_limit REAL DEFAULT 1.0,
+                monthly_training_hours_used REAL DEFAULT 0.0,
+                can_train_models BOOLEAN DEFAULT TRUE,
+                can_use_api BOOLEAN DEFAULT TRUE,
+                max_models INTEGER DEFAULT 3,
+                priority_support BOOLEAN DEFAULT FALSE,
+                current_period_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                current_period_end TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 days'),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Update models table to use UUIDs
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS models (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Update conversations table to use UUIDs
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                model_id UUID REFERENCES models(id) ON DELETE CASCADE,
+                messages JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -109,22 +177,146 @@ def get_users():
         cursor.close()
         conn.close()
 
-def save_user(email, password_hash, subscription_tier='free'):
+def create_user(email, username, password, first_name='', last_name=''):
+    """Create a new user with proper security."""
     conn = get_db_connection()
     if not conn:
-        return False
+        return None
 
     try:
         cursor = conn.cursor()
+        
+        # Check if user already exists
         cursor.execute(
-            "INSERT INTO users (email, password_hash, subscription_tier) VALUES (%s, %s, %s) ON CONFLICT (email) DO UPDATE SET password_hash = %s, subscription_tier = %s",
-            (email, password_hash, subscription_tier, password_hash, subscription_tier)
+            "SELECT id FROM users WHERE email = %s OR username = %s",
+            (email, username)
         )
+        if cursor.fetchone():
+            return None  # User already exists
+        
+        user_id = str(uuid.uuid4())
+        password_hash = generate_password_hash(password)
+        api_key = str(uuid.uuid4()).replace('-', '')
+        
+        # Create user
+        cursor.execute('''
+            INSERT INTO users (id, email, username, password_hash, first_name, last_name, 
+                             api_key, api_key_created_at, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (user_id, email, username, password_hash, first_name, last_name, 
+              api_key, datetime.utcnow(), True))
+        
+        # Create default subscription
+        cursor.execute('''
+            INSERT INTO subscriptions (user_id, tier, status, monthly_token_limit, 
+                                     monthly_training_hours_limit, can_train_models, 
+                                     can_use_api, max_models)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (user_id, 'free', 'active', 10000, 1.0, True, True, 3))
+        
         conn.commit()
-        return True
+        
+        # Return user data
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        return dict(user) if user else None
+        
     except Exception as e:
-        logger.error(f"Error saving user: {e}")
-        return False
+        logger.error(f"Error creating user: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def authenticate_user(email, password):
+    """Authenticate user and return user data if valid."""
+    conn = get_db_connection()
+    if not conn:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        
+        if not user:
+            return None
+            
+        user_dict = dict(user)
+        
+        # Check if account is locked
+        if user_dict.get('locked_until') and user_dict['locked_until'] > datetime.utcnow():
+            return None
+        
+        # Check password
+        if not check_password_hash(user_dict['password_hash'], password):
+            # Increment failed attempts
+            cursor.execute(
+                "UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = %s",
+                (user_dict['id'],)
+            )
+            
+            # Lock account after 5 failed attempts
+            if user_dict.get('failed_login_attempts', 0) >= 4:
+                lock_until = datetime.utcnow() + timedelta(minutes=15)
+                cursor.execute(
+                    "UPDATE users SET locked_until = %s WHERE id = %s",
+                    (lock_until, user_dict['id'])
+                )
+            
+            conn.commit()
+            return None
+        
+        # Successful login - update login info
+        cursor.execute('''
+            UPDATE users 
+            SET last_login_at = %s, failed_login_attempts = 0, locked_until = NULL 
+            WHERE id = %s
+        ''', (datetime.utcnow(), user_dict['id']))
+        
+        conn.commit()
+        return user_dict
+        
+    except Exception as e:
+        logger.error(f"Error authenticating user: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_user_by_id(user_id):
+    """Get user by ID."""
+    conn = get_db_connection()
+    if not conn:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        return dict(user) if user else None
+    except Exception as e:
+        logger.error(f"Error getting user: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_user_subscription(user_id):
+    """Get user's subscription."""
+    conn = get_db_connection()
+    if not conn:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM subscriptions WHERE user_id = %s", (user_id,))
+        subscription = cursor.fetchone()
+        return dict(subscription) if subscription else None
+    except Exception as e:
+        logger.error(f"Error getting subscription: {e}")
+        return None
     finally:
         cursor.close()
         conn.close()
@@ -208,66 +400,177 @@ def health_check():
         'version': '1.0.0'
     })
 
-# User management
+# Real Authentication endpoints
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    """User login with JWT token generation."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
 
-    # Simple demo authentication
-    if username and password:
-        users_data = get_users()
-        user_id = f"user_{len(users_data) + 1}"
-        user = {
-            'id': user_id,
-            'username': username,
-            'email': f"{username}@example.com",
-            'created_at': datetime.now().isoformat()
+        email = data.get('email')
+        password = data.get('password')
+
+        if not email or not password:
+            return jsonify({
+                'success': False,
+                'error': 'Email and password are required'
+            }), 400
+
+        # Authenticate user
+        user = authenticate_user(email, password)
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid email or password'
+            }), 401
+
+        # Get user's subscription
+        subscription = get_user_subscription(user['id'])
+
+        # Create JWT access token
+        access_token = create_access_token(identity=str(user['id']))
+
+        # Remove sensitive data
+        user_data = {
+            'id': str(user['id']),
+            'email': user['email'],
+            'username': user['username'],
+            'first_name': user.get('first_name', ''),
+            'last_name': user.get('last_name', ''),
+            'is_active': user['is_active'],
+            'is_verified': user['is_verified'],
+            'created_at': user['created_at'].isoformat() if user['created_at'] else None,
+            'last_login_at': user['last_login_at'].isoformat() if user['last_login_at'] else None
         }
-        users_data[user_id] = user
-        # Note: Using old simple format for demo - replace with save_user() for full PostgreSQL integration
-        save_to_fallback('users', user_id, user)
 
         return jsonify({
             'success': True,
-            'message': 'Login successful',
-            'user': user,
-            'token': f"demo_token_{user_id}"
+            'access_token': access_token,
+            'user': user_data,
+            'subscription': subscription
         })
 
-    return jsonify({
-        'success': False,
-        'message': 'Invalid credentials'
-    }), 401
+    except Exception as e:
+        logger.error(f"Error during login: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
+    """User registration with secure password hashing."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
 
-    if email and password:
-        users_data = get_users()
-        user_id = f"user_{len(users_data) + 1}"
-        user = {
-            'id': user_id,
-            'email': email,
-            'created_at': datetime.now().isoformat()
+        email = data.get('email')
+        username = data.get('username')
+        password = data.get('password')
+        first_name = data.get('first_name', '')
+        last_name = data.get('last_name', '')
+
+        if not all([email, username, password]):
+            return jsonify({
+                'success': False,
+                'error': 'Email, username, and password are required'
+            }), 400
+
+        # Create user
+        user = create_user(email, username, password, first_name, last_name)
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'Email or username already exists'
+            }), 409
+
+        # Get user's subscription
+        subscription = get_user_subscription(user['id'])
+
+        # Create JWT access token
+        access_token = create_access_token(identity=str(user['id']))
+
+        # Remove sensitive data
+        user_data = {
+            'id': str(user['id']),
+            'email': user['email'],
+            'username': user['username'],
+            'first_name': user.get('first_name', ''),
+            'last_name': user.get('last_name', ''),
+            'is_active': user['is_active'],
+            'is_verified': user['is_verified'],
+            'created_at': user['created_at'].isoformat() if user['created_at'] else None
         }
-        users_data[user_id] = user
-        # Note: Using old simple format for demo - replace with save_user() for full PostgreSQL integration
-        save_to_fallback('users', user_id, user)
+
         return jsonify({
             'success': True,
-            'user': users_data[user_id],
-            'token': f"token_{user_id}"
+            'access_token': access_token,
+            'user': user_data,
+            'subscription': subscription
+        }), 201
+
+    except Exception as e:
+        logger.error(f"Error during registration: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    """Get current authenticated user information."""
+    try:
+        user_id = get_jwt_identity()
+        
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        subscription = get_user_subscription(user_id)
+
+        # Remove sensitive data
+        user_data = {
+            'id': str(user['id']),
+            'email': user['email'],
+            'username': user['username'],
+            'first_name': user.get('first_name', ''),
+            'last_name': user.get('last_name', ''),
+            'is_active': user['is_active'],
+            'is_verified': user['is_verified'],
+            'api_key': user.get('api_key'),
+            'created_at': user['created_at'].isoformat() if user['created_at'] else None,
+            'last_login_at': user['last_login_at'].isoformat() if user['last_login_at'] else None
+        }
+
+        return jsonify({
+            'success': True,
+            'user': user_data,
+            'subscription': subscription
         })
 
-    return jsonify({'success': False, 'error': 'Invalid data'}), 400
+    except Exception as e:
+        logger.error(f"Error getting current user: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # Model management
 @app.route('/api/models', methods=['GET'])
+@jwt_required()
 def get_models_list():
     models_data = get_models()
     models_list = list(models_data.values())
@@ -277,31 +580,82 @@ def get_models_list():
     })
 
 @app.route('/api/models', methods=['POST'])
+@jwt_required()
 def create_model():
-    data = request.get_json()
-    models_data = get_models()
-
-    model_id = f"model_{len(models_data) + 1}"
-    model = {
-        'id': model_id,
-        'name': data.get('name', f'Model {len(models_data) + 1}'),
-        'description': data.get('description', 'Demo model'),
-        'status': 'active',
-        'created_at': datetime.now().isoformat()
-    }
-
-    models_data[model_id] = model
-    # Note: Using old simple format for demo - replace with save_models() for full PostgreSQL integration
-    save_to_fallback('models', model_id, model)
-
-    return jsonify({
-        'success': True,
-        'message': 'Model created successfully',
-        'model': model
-    })
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Check user's subscription limits
+        subscription = get_user_subscription(user_id)
+        if not subscription or not subscription.get('can_train_models', False):
+            return jsonify({
+                'success': False,
+                'error': 'Model training not available in your subscription'
+            }), 403
+        
+        # Check model count limit
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM models WHERE user_id = %s", (user_id,))
+                model_count = cursor.fetchone()[0]
+                
+                max_models = subscription.get('max_models', 3)
+                if model_count >= max_models:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Model limit reached ({max_models} models maximum)'
+                    }), 403
+                    
+                # Create model
+                model_id = str(uuid.uuid4())
+                cursor.execute('''
+                    INSERT INTO models (id, name, description, user_id, status)
+                    VALUES (%s, %s, %s, %s, %s)
+                ''', (
+                    model_id,
+                    data.get('name', f'Model {model_count + 1}'),
+                    data.get('description', 'User created model'),
+                    user_id,
+                    'active'
+                ))
+                
+                conn.commit()
+                
+                # Get created model
+                cursor.execute("SELECT * FROM models WHERE id = %s", (model_id,))
+                model = dict(cursor.fetchone())
+                model['id'] = str(model['id'])
+                model['user_id'] = str(model['user_id'])
+                model['created_at'] = model['created_at'].isoformat()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Model created successfully',
+                    'model': model
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+        
+        return jsonify({
+            'success': False,
+            'error': 'Database connection failed'
+        }), 500
+        
+    except Exception as e:
+        logger.error(f"Error creating model: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # Chat functionality
 @app.route('/api/chat', methods=['POST'])
+@jwt_required()
 def chat():
     data = request.get_json()
     message = data.get('message', '')
@@ -344,6 +698,7 @@ def get_conversation(conversation_id):
 
 # Training endpoints
 @app.route('/api/training/start', methods=['POST'])
+@jwt_required()
 def start_training():
     data = request.get_json()
     model_id = data.get('model_id')
@@ -1061,6 +1416,28 @@ def schedule_report():
         'schedule': schedule_data,
         'message': 'Report scheduled successfully'
     })
+
+# JWT error handlers
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'success': False,
+        'error': 'Token has expired'
+    }), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({
+        'success': False,
+        'error': 'Invalid token'
+    }), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({
+        'success': False,
+        'error': 'Authorization token is required'
+    }), 401
 
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
