@@ -25,7 +25,7 @@ localPort = 3000
 externalPort = 3000
 
 [workflows]
-runButton = "Run Full Stack"
+runButton = "Run Simple App"
 
 [[workflows.workflow]]
 name = "Run Flask App"
@@ -48,3 +48,12 @@ args = "python app.py"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Run Simple App"
+author = 23270859
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python simple_app.py"
