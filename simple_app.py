@@ -4,7 +4,9 @@ import os
 import json
 import logging
 from datetime import datetime
-from replit import db
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import urllib.parse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,24 +17,146 @@ app = Flask(__name__)
 # Simple CORS setup for development
 CORS(app, origins=['*'], supports_credentials=True)
 
-# Initialize Replit database (no need for in-memory storage)
-def get_users():
-    return db.get('users', {})
+# PostgreSQL database connection
+def get_db_connection():
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        logger.error("DATABASE_URL environment variable not set")
+        return None
+    
+    try:
+        conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+        return None
 
-def save_users(users_data):
-    db['users'] = users_data
+# Initialize database tables
+def init_database():
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Create users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                subscription_tier VARCHAR(50) DEFAULT 'free',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create models table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS models (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                user_id INTEGER REFERENCES users(id),
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create conversations table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                model_id INTEGER REFERENCES models(id),
+                messages JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        logger.info("Database tables initialized successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+# Database helper functions
+def get_users():
+    conn = get_db_connection()
+    if not conn:
+        return {}
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users")
+        users = cursor.fetchall()
+        return {user['email']: dict(user) for user in users}
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        return {}
+    finally:
+        cursor.close()
+        conn.close()
+
+def save_user(email, password_hash, subscription_tier='free'):
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (email, password_hash, subscription_tier) VALUES (%s, %s, %s) ON CONFLICT (email) DO UPDATE SET password_hash = %s, subscription_tier = %s",
+            (email, password_hash, subscription_tier, password_hash, subscription_tier)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error saving user: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
 def get_models():
-    return db.get('models', {})
-
-def save_models(models_data):
-    db['models'] = models_data
+    conn = get_db_connection()
+    if not conn:
+        return {}
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM models")
+        models = cursor.fetchall()
+        return {str(model['id']): dict(model) for model in models}
+    except Exception as e:
+        logger.error(f"Error fetching models: {e}")
+        return {}
+    finally:
+        cursor.close()
+        conn.close()
 
 def get_conversations():
-    return db.get('conversations', {})
-
-def save_conversations(conversations_data):
-    db['conversations'] = conversations_data
+    conn = get_db_connection()
+    if not conn:
+        return {}
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM conversations")
+        conversations = cursor.fetchall()
+        return {str(conv['id']): dict(conv) for conv in conversations}
+    except Exception as e:
+        logger.error(f"Error fetching conversations: {e}")
+        return {}
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # Serve React frontend
@@ -231,10 +355,17 @@ def get_stats():
             'total_users': len(users_data),
             'total_models': len(models_data),
             'total_conversations': len(conversations_data),
-            'database_keys': list(db.keys())
+            'database_type': 'PostgreSQL'
         }
     })
 
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
+    
+    # Initialize database tables
+    if init_database():
+        logger.info("Database initialized successfully")
+    else:
+        logger.error("Failed to initialize database")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)

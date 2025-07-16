@@ -6,3 +6,14 @@ Flask-Migrate==4.0.5
 requests==2.32.4
 python-dotenv==1.0.0
 replit
+chardet
+click
+datasets
+pandas
+peft
+psutil
+psycopg2-binary
+sqlalchemy
+torch
+transformers
+werkzeug
