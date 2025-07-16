@@ -860,6 +860,31 @@ def training_status(model_id):
 
     return jsonify({'success': False, 'error': 'Model not found'}), 404
 
+# Add v1 API routes for compatibility
+@app.route('/api/v1/auth/login', methods=['POST'])
+def login_v1():
+    """User login endpoint (v1 compatibility)."""
+    return login()
+
+@app.route('/api/v1/auth/register', methods=['POST'])
+def register_v1():
+    """User registration endpoint (v1 compatibility)."""
+    return register()
+
+@app.route('/api/v1/auth/me', methods=['GET'])
+@jwt_required()
+def get_current_user_v1():
+    """Get current user information (v1 compatibility)."""
+    return get_current_user()
+
+@app.route('/api/v1/auth/google')
+def google_auth_v1():
+    """Google OAuth endpoint (v1 compatibility)."""
+    return jsonify({
+        'success': False,
+        'error': 'Google OAuth not yet configured. Please use email/password login.'
+    }), 501
+
 # Database stats endpoint
 @app.route('/api/v1/stats', methods=['GET'])
 @app.route('/api/stats', methods=['GET'])  # Keep old route for compatibility
