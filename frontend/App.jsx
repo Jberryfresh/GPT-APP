@@ -19,7 +19,7 @@ function App() {
     // Check for OAuth token in URL (from Google OAuth redirect)
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
-    
+
     if (token) {
       localStorage.setItem('authToken', token);
       setIsAuthenticated(true);

@@ -7,17 +7,23 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    allowedHosts: 'all',
+    hmr: {
+      port: 3001
+    },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://0.0.0.0:5000',
         changeOrigin: true,
         secure: false,
+        ws: true
       }
     }
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      external: []
+    }
   }
 })
