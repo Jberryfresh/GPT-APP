@@ -8,7 +8,7 @@ import {
   Database, 
   Settings, 
   CreditCard,
-  MonitorHeart,
+  Activity,
   LogOut, 
   User,
   Menu,
@@ -22,7 +22,7 @@ const navigation = [
   { name: 'Training', href: '/training', icon: Zap },
   { name: 'Data', href: '/data', icon: Database },
   { name: 'Subscription', href: '/subscription', icon: CreditCard },
-  { name: 'Monitoring', href: '/monitoring', icon: MonitorHeart }, // Added monitoring link
+  { name: 'Monitoring', href: '/monitoring', icon: Activity }, // Added monitoring link
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
