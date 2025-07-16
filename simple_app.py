@@ -86,6 +86,8 @@ def init_database():
                 user_id UUID REFERENCES users(id) ON DELETE CASCADE,
                 tier VARCHAR(50) DEFAULT 'free',
                 status VARCHAR(50) DEFAULT 'active',
+                stripe_customer_id VARCHAR(255),
+                stripe_subscription_id VARCHAR(255),
                 monthly_token_limit BIGINT DEFAULT 10000,
                 monthly_tokens_used BIGINT DEFAULT 0,
                 monthly_training_hours_limit REAL DEFAULT 1.0,
@@ -101,7 +103,7 @@ def init_database():
             )
         ''')
         
-        # Update models table to use UUIDs
+        # Create models table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS models (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,7 +115,7 @@ def init_database():
             )
         ''')
         
-        # Update conversations table to use UUIDs
+        # Create conversations table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,25 +126,48 @@ def init_database():
             )
         ''')
 
-        # Create models table
+        # Create usage_records table for billing
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS models (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                user_id INTEGER REFERENCES users(id),
-                status VARCHAR(50) DEFAULT 'active',
+            CREATE TABLE IF NOT EXISTS usage_records (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                model_id UUID REFERENCES models(id) ON DELETE SET NULL,
+                operation_type VARCHAR(50) NOT NULL,
+                tokens_used INTEGER DEFAULT 0,
+                compute_time_seconds REAL DEFAULT 0.0,
+                cost_cents INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
-        # Create conversations table
+        # Create billing_invoices table
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS conversations (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                model_id INTEGER REFERENCES models(id),
-                messages JSONB,
+            CREATE TABLE IF NOT EXISTS billing_invoices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                stripe_invoice_id VARCHAR(255),
+                amount_cents INTEGER NOT NULL,
+                currency VARCHAR(3) DEFAULT 'USD',
+                status VARCHAR(50) DEFAULT 'pending',
+                billing_period_start TIMESTAMP NOT NULL,
+                billing_period_end TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                paid_at TIMESTAMP
+            )
+        ''')
+
+        # Create payment_methods table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payment_methods (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                stripe_payment_method_id VARCHAR(255) UNIQUE NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                last_four VARCHAR(4),
+                brand VARCHAR(50),
+                exp_month INTEGER,
+                exp_year INTEGER,
+                is_default BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -657,35 +682,72 @@ def create_model():
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
 def chat():
-    data = request.get_json()
-    message = data.get('message', '')
-    model_id = data.get('model_id', 'default')
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        message = data.get('message', '')
+        model_id = data.get('model_id', 'default')
 
-    conversations_data = get_conversations()
-    conversation_id = f"conv_{len(conversations_data) + 1}"
+        # Check user's subscription limits
+        subscription = get_user_subscription(user_id)
+        if not subscription:
+            return jsonify({
+                'success': False,
+                'error': 'No active subscription found'
+            }), 403
 
-    # Simple echo response for demo
-    response = f"Echo: {message}"
+        # Estimate token usage (rough approximation)
+        estimated_tokens = len(message.split()) * 2  # Approximate tokens for input + output
+        
+        # Check token quota
+        if subscription['monthly_token_limit'] != -1:  # Not unlimited
+            if subscription['monthly_tokens_used'] + estimated_tokens > subscription['monthly_token_limit']:
+                return jsonify({
+                    'success': False,
+                    'error': 'Monthly token limit exceeded. Please upgrade your plan.'
+                }), 429
 
-    conversation = {
-        'id': conversation_id,
-        'model_id': model_id,
-        'messages': [
-            {'role': 'user', 'content': message},
-            {'role': 'assistant', 'content': response}
-        ],
-        'created_at': datetime.now().isoformat()
-    }
+        conversations_data = get_conversations()
+        conversation_id = f"conv_{len(conversations_data) + 1}"
 
-    conversations_data[conversation_id] = conversation
-    # Note: Using old simple format for demo - replace with save_conversations() for full PostgreSQL integration
-    save_to_fallback('conversations', conversation_id, conversation)
+        # Simple echo response for demo
+        response = f"Echo: {message}"
 
-    return jsonify({
-        'success': True,
-        'response': response,
-        'conversation_id': conversation_id
-    })
+        # Record usage for billing
+        record_usage(
+            user_id=user_id,
+            operation_type='chat',
+            tokens_used=estimated_tokens,
+            compute_time=0.5,  # Simulated compute time
+            model_id=model_id if model_id != 'default' else None
+        )
+
+        conversation = {
+            'id': conversation_id,
+            'model_id': model_id,
+            'messages': [
+                {'role': 'user', 'content': message},
+                {'role': 'assistant', 'content': response}
+            ],
+            'created_at': datetime.now().isoformat()
+        }
+
+        conversations_data[conversation_id] = conversation
+        save_to_fallback('conversations', conversation_id, conversation)
+
+        return jsonify({
+            'success': True,
+            'response': response,
+            'conversation_id': conversation_id,
+            'tokens_used': estimated_tokens
+        })
+
+    except Exception as e:
+        logger.error(f"Error in chat: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/conversations/<conversation_id>')
 def get_conversation(conversation_id):
@@ -1416,6 +1478,493 @@ def schedule_report():
         'schedule': schedule_data,
         'message': 'Report scheduled successfully'
     })
+
+# Billing and Subscription endpoints
+@app.route('/api/billing/subscription', methods=['GET'])
+@jwt_required()
+def get_subscription():
+    """Get user's current subscription details."""
+    try:
+        user_id = get_jwt_identity()
+        subscription = get_user_subscription(user_id)
+        
+        if not subscription:
+            return jsonify({
+                'success': False,
+                'error': 'No subscription found'
+            }), 404
+
+        return jsonify({
+            'success': True,
+            'subscription': subscription
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting subscription: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/plans', methods=['GET'])
+def get_billing_plans():
+    """Get available billing plans."""
+    try:
+        plans = [
+            {
+                'id': 'free',
+                'name': 'Free Tier',
+                'price': 0,
+                'currency': 'USD',
+                'interval': 'monthly',
+                'features': [
+                    '10,000 tokens per month',
+                    'Basic chat interface',
+                    'Up to 3 custom models',
+                    'Community support'
+                ],
+                'limits': {
+                    'tokens_per_month': 10000,
+                    'models': 3,
+                    'api_calls_per_minute': 10,
+                    'training_hours': 1.0
+                }
+            },
+            {
+                'id': 'individual',
+                'name': 'Individual',
+                'price': 19.99,
+                'currency': 'USD',
+                'interval': 'monthly',
+                'features': [
+                    '100,000 tokens per month',
+                    'Advanced chat features',
+                    'Up to 10 custom models',
+                    'Model customization',
+                    'Email support',
+                    'Training analytics'
+                ],
+                'limits': {
+                    'tokens_per_month': 100000,
+                    'models': 10,
+                    'api_calls_per_minute': 60,
+                    'training_hours': 5.0
+                }
+            },
+            {
+                'id': 'professional',
+                'name': 'Professional',
+                'price': 99.99,
+                'currency': 'USD',
+                'interval': 'monthly',
+                'features': [
+                    '1,000,000 tokens per month',
+                    'Advanced model training',
+                    'Up to 50 custom models',
+                    'API access',
+                    'Priority support',
+                    'Analytics dashboard',
+                    'Export capabilities'
+                ],
+                'limits': {
+                    'tokens_per_month': 1000000,
+                    'models': 50,
+                    'api_calls_per_minute': 300,
+                    'training_hours': 25.0
+                }
+            },
+            {
+                'id': 'enterprise',
+                'name': 'Enterprise',
+                'price': 499.99,
+                'currency': 'USD',
+                'interval': 'monthly',
+                'features': [
+                    'Unlimited tokens',
+                    'Custom model training',
+                    'Unlimited custom models',
+                    'Dedicated support',
+                    'SLA guarantees',
+                    'Advanced security',
+                    'Custom integrations'
+                ],
+                'limits': {
+                    'tokens_per_month': -1,  # Unlimited
+                    'models': -1,  # Unlimited
+                    'api_calls_per_minute': 1000,
+                    'training_hours': -1  # Unlimited
+                }
+            }
+        ]
+
+        return jsonify({
+            'success': True,
+            'plans': plans
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting billing plans: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/usage', methods=['GET'])
+@jwt_required()
+def get_usage():
+    """Get user's current usage statistics."""
+    try:
+        user_id = get_jwt_identity()
+        subscription = get_user_subscription(user_id)
+        
+        if not subscription:
+            return jsonify({
+                'success': False,
+                'error': 'No subscription found'
+            }), 404
+
+        # Get usage from current period
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                # Get current period usage
+                cursor.execute('''
+                    SELECT 
+                        SUM(tokens_used) as total_tokens,
+                        COUNT(*) as total_requests,
+                        SUM(compute_time_seconds) as total_compute_time
+                    FROM usage_records 
+                    WHERE user_id = %s 
+                    AND created_at >= %s 
+                    AND created_at <= %s
+                ''', (user_id, subscription['current_period_start'], subscription['current_period_end']))
+                
+                usage_stats = cursor.fetchone()
+                
+                usage = {
+                    'current_period': {
+                        'start_date': subscription['current_period_start'].isoformat(),
+                        'end_date': subscription['current_period_end'].isoformat(),
+                        'tokens_used': subscription['monthly_tokens_used'],
+                        'tokens_limit': subscription['monthly_token_limit'],
+                        'training_hours_used': subscription['monthly_training_hours_used'],
+                        'training_hours_limit': subscription['monthly_training_hours_limit'],
+                        'api_calls': usage_stats['total_requests'] if usage_stats['total_requests'] else 0
+                    },
+                    'tier': subscription['tier'],
+                    'status': subscription['status']
+                }
+                
+                return jsonify({
+                    'success': True,
+                    'usage': usage
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error getting usage: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/upgrade', methods=['POST'])
+@jwt_required()
+def upgrade_subscription():
+    """Upgrade user subscription."""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+
+        plan_id = data.get('plan_id')
+        if not plan_id:
+            return jsonify({
+                'success': False,
+                'error': 'plan_id is required'
+            }), 400
+
+        # Get plan details
+        plan_limits = {
+            'free': {'tokens': 10000, 'models': 3, 'training_hours': 1.0},
+            'individual': {'tokens': 100000, 'models': 10, 'training_hours': 5.0},
+            'professional': {'tokens': 1000000, 'models': 50, 'training_hours': 25.0},
+            'enterprise': {'tokens': -1, 'models': -1, 'training_hours': -1}
+        }
+
+        if plan_id not in plan_limits:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid plan_id'
+            }), 400
+
+        # Update subscription in database
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                limits = plan_limits[plan_id]
+                
+                cursor.execute('''
+                    UPDATE subscriptions 
+                    SET tier = %s, 
+                        monthly_token_limit = %s,
+                        max_models = %s,
+                        monthly_training_hours_limit = %s,
+                        updated_at = %s
+                    WHERE user_id = %s
+                ''', (
+                    plan_id,
+                    limits['tokens'],
+                    limits['models'],
+                    limits['training_hours'],
+                    datetime.utcnow(),
+                    user_id
+                ))
+                
+                conn.commit()
+                
+                # Get updated subscription
+                subscription = get_user_subscription(user_id)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully upgraded to {plan_id} plan',
+                    'subscription': subscription
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error upgrading subscription: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/cancel', methods=['POST'])
+@jwt_required()
+def cancel_subscription():
+    """Cancel user subscription."""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    UPDATE subscriptions 
+                    SET status = 'cancelled', updated_at = %s 
+                    WHERE user_id = %s
+                ''', (datetime.utcnow(), user_id))
+                
+                conn.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Subscription cancelled successfully'
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error cancelling subscription: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/payment-methods', methods=['GET'])
+@jwt_required()
+def get_payment_methods():
+    """Get user's payment methods."""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM payment_methods 
+                    WHERE user_id = %s 
+                    ORDER BY is_default DESC, created_at DESC
+                ''', (user_id,))
+                
+                payment_methods = cursor.fetchall()
+                methods_list = [dict(method) for method in payment_methods]
+                
+                # Convert UUIDs to strings and format dates
+                for method in methods_list:
+                    method['id'] = str(method['id'])
+                    method['user_id'] = str(method['user_id'])
+                    method['created_at'] = method['created_at'].isoformat()
+                
+                return jsonify({
+                    'success': True,
+                    'payment_methods': methods_list
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error getting payment methods: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/payment-methods', methods=['POST'])
+@jwt_required()
+def add_payment_method():
+    """Add a new payment method."""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # This would integrate with Stripe in production
+        # For demo purposes, we'll create a mock payment method
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                payment_method_id = str(uuid.uuid4())
+                
+                cursor.execute('''
+                    INSERT INTO payment_methods 
+                    (id, user_id, stripe_payment_method_id, type, last_four, brand, exp_month, exp_year, is_default)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    payment_method_id,
+                    user_id,
+                    f"pm_{payment_method_id[:24]}",  # Mock Stripe ID
+                    data.get('type', 'card'),
+                    data.get('last_four', '4242'),
+                    data.get('brand', 'visa'),
+                    data.get('exp_month', 12),
+                    data.get('exp_year', 2025),
+                    data.get('is_default', False)
+                ))
+                
+                conn.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Payment method added successfully'
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error adding payment method: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/billing/invoices', methods=['GET'])
+@jwt_required()
+def get_invoices():
+    """Get user's billing invoices."""
+    try:
+        user_id = get_jwt_identity()
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM billing_invoices 
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC
+                    LIMIT 12
+                ''', (user_id,))
+                
+                invoices = cursor.fetchall()
+                invoices_list = []
+                
+                for invoice in invoices:
+                    invoice_dict = dict(invoice)
+                    invoice_dict['id'] = str(invoice_dict['id'])
+                    invoice_dict['user_id'] = str(invoice_dict['user_id'])
+                    invoice_dict['created_at'] = invoice_dict['created_at'].isoformat()
+                    invoice_dict['billing_period_start'] = invoice_dict['billing_period_start'].isoformat()
+                    invoice_dict['billing_period_end'] = invoice_dict['billing_period_end'].isoformat()
+                    if invoice_dict['paid_at']:
+                        invoice_dict['paid_at'] = invoice_dict['paid_at'].isoformat()
+                    invoices_list.append(invoice_dict)
+                
+                return jsonify({
+                    'success': True,
+                    'invoices': invoices_list
+                })
+                
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error getting invoices: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def record_usage(user_id, operation_type, tokens_used=0, compute_time=0.0, model_id=None):
+    """Record usage for billing purposes."""
+    try:
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                # Calculate cost (example: $0.002 per 1000 tokens)
+                cost_cents = int((tokens_used / 1000) * 0.2 * 100)  # Convert to cents
+                
+                cursor.execute('''
+                    INSERT INTO usage_records 
+                    (user_id, model_id, operation_type, tokens_used, compute_time_seconds, cost_cents)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                ''', (user_id, model_id, operation_type, tokens_used, compute_time, cost_cents))
+                
+                # Update subscription usage
+                cursor.execute('''
+                    UPDATE subscriptions 
+                    SET monthly_tokens_used = monthly_tokens_used + %s
+                    WHERE user_id = %s
+                ''', (tokens_used, user_id))
+                
+                conn.commit()
+                
+            finally:
+                cursor.close()
+                conn.close()
+                
+    except Exception as e:
+        logger.error(f"Error recording usage: {e}")
 
 # JWT error handlers
 @jwt.expired_token_loader

@@ -151,12 +151,19 @@
                         >
                             Training
                         </button>
+                        <button 
+                            className={currentView === 'subscription' ? 'active' : ''} 
+                            onClick={() => setCurrentView('subscription')}
+                        >
+                            Subscription
+                        </button>
                     </div>
 
                     {currentView === 'dashboard' && <Dashboard models={models} />}
                     {currentView === 'models' && <ModelsView models={models} onCreateModel={createModel} />}
                     {currentView === 'chat' && <ChatView conversations={conversations} onSendMessage={sendMessage} />}
                     {currentView === 'training' && <TrainingView models={models} />}
+                    {currentView === 'subscription' && <Subscription />}
                 </div>
             );
         }
@@ -370,6 +377,14 @@
                 </div>
             );
         }
+        function Subscription() {
+            return (
+                <div className="card">
+                    <h2>Subscription</h2>
+                    <p>Subscription functionality will be implemented here.</p>
+                </div>
+            );
+        }
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
@@ -379,6 +394,8 @@
     <script src="Models.jsx" type="text/babel"></script>
     <script src="MonitoringDashboard.jsx" type="text/babel"></script>
     <script src="Analytics.jsx" type="text/babel"></script>
+    <script src="Reports.jsx" type="text/babel"></script>
+    <script src="Subscription.jsx" type="text/babel"></script>
     <script src="Settings.jsx" type="text/babel"></script>
 </body>
 </html>
