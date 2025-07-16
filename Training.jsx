@@ -118,7 +118,7 @@ export default function Training() {
       accuracy: null,
       loss: null
     }
-    
+
     setTrainingJobs(prev => [...prev, newJob])
     setShowNewTrainingDialog(false)
     setNewTraining({
@@ -312,7 +312,7 @@ export default function Training() {
                 </div>
               </div>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
               {/* Progress */}
               {job.status === 'running' && (
@@ -411,125 +411,361 @@ export default function Training() {
   )
 }
 
-import { useState, useEffect } from 'react'
 import { Zap, Plus, Play, Pause, RotateCcw } from 'lucide-react'
 
-function Training() {
-  const [trainingJobs, setTrainingJobs] = useState([])
-  const [loading, setLoading] = useState(true)
+const Training = () => {
+  const [trainingData, setTrainingData] = useState('');
+  const [modelName, setModelName] = useState('');
+  const [isTraining, setIsTraining] = useState(false);
+  const [trainingResult, setTrainingResult] = useState(null);
+  const [trainingProgress, setTrainingProgress] = useState(null);
+  const [hyperparameters, setHyperparameters] = useState({});
+  const [dataAnalysis, setDataAnalysis] = useState(null);
+  const [trainingType, setTrainingType] = useState('general');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  useEffect(() => {
-    fetchTrainingJobs()
-  }, [])
-
-  const fetchTrainingJobs = async () => {
+  const optimizeHyperparameters = async () => {
     try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch('/api/v1/training/jobs', {
+      const response = await fetch('/api/training/hyperparameters', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ training_type: trainingType })
+      });
 
-      if (response.ok) {
-        const data = await response.json()
-        setTrainingJobs(data.jobs || [])
-      } else {
-        // Fallback demo data
-        setTrainingJobs([])
+      const result = await response.json();
+      if (result.status === 'success') {
+        setHyperparameters(result.suggestions);
       }
     } catch (error) {
-      console.error('Error fetching training jobs:', error)
-      setTrainingJobs([])
+      console.error('Hyperparameter optimization error:', error);
     }
-    setLoading(false)
-  }
+  };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
-      </div>
-    )
-  }
+  const analyzeData = async () => {
+    if (!trainingData.trim()) return;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Training</h1>
-          <p className="text-gray-600 mt-2">Train and fine-tune your AI models</p>
-        </div>
-        <button className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-          <Plus className="h-4 w-4" />
-          <span>New Training Job</span>
-        </button>
-      </div>
+    try {
+      const response = await fetch('/api/training/datasets/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: trainingData })
+      });
 
-      {trainingJobs.length === 0 ? (
-        <div className="text-center py-12">
-          <Zap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No training jobs yet</h3>
-          <p className="text-gray-500 mb-4">Start training your first custom AI model.</p>
-          <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-            Start Training
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {trainingJobs.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <Zap className="h-8 w-8 text-indigo-600" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{job.name}</h3>
-                    <p className="text-sm text-gray-500">{job.model_type}</p>
-                  </div>
+      const result = await response.json();
+      setDataAnalysis(result);
+    } catch (error) {
+      console.error('Data analysis error:', error);
+    }
+  };
+
+  const handleTraining = async () => {
+    if (!trainingData.trim() || !modelName.trim()) {
+      alert('Please provide both training data and model name');
+      return;
+    }
+
+    setIsTraining(true);
+    setTrainingResult(null);
+    setTrainingProgress(null);
+
+    try {
+      // Start training
+      const response = await fetch('/api/train', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: trainingData,
+          model_name: modelName,
+          hyperparameters: hyperparameters
+        })
+      });
+
+      const result = await response.json();
+      setTrainingResult(result);
+
+      // Simulate progress tracking
+      if (result.status === 'success') {
+        const progressInterval = setInterval(async () => {
+          try {
+            const progressResponse = await fetch(`/api/training/progress/${result.model_id}`);
+            const progress = await progressResponse.json();
+            setTrainingProgress(progress);
+
+            if (progress.status === 'completed') {
+              clearInterval(progressInterval);
+            }
+          } catch (error) {
+            console.error('Progress tracking error:', error);
+          }
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Training error:', error);
+      setTrainingResult({ error: 'Training failed' });
+    } finally {
+      setIsTraining(false);
+    }
+  };
+
+return (
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Advanced Model Training</h1>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Training Configuration */}
+        <div className="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4">Training Configuration</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Model Name
+              </label>
+              <input
+                type="text"
+                value={modelName}
+                onChange={(e) => setModelName(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter model name..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Training Type
+              </label>
+              <select
+                value={trainingType}
+                onChange={(e) => setTrainingType(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="general">General Purpose</option>
+                <option value="conversational">Conversational AI</option>
+                <option value="technical">Technical Documentation</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Training Data
+              </label>
+              <button
+                onClick={analyzeData}
+                className="px-3 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
+              >
+                Analyze Data
+              </button>
+            </div>
+            <textarea
+              value={trainingData}
+              onChange={(e) => setTrainingData(e.target.value)}
+              className="w-full h-48 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your training data here..."
+            />
+          </div>
+
+          <div className="flex space-x-4">
+            <button
+              onClick={optimizeHyperparameters}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            >
+              Optimize Hyperparameters
+            </button>
+
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            >
+              {showAdvanced ? 'Hide' : 'Show'} Advanced Settings
+            </button>
+          </div>
+
+          {showAdvanced && hyperparameters.learning_rate && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-md">
+              <h3 className="font-semibold mb-3">Hyperparameters</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <span className="font-medium">Learning Rate:</span> {hyperparameters.learning_rate}
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    job.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                    job.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    job.status === 'failed' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {job.status}
-                  </span>
-                  <div className="flex space-x-2">
-                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
-                      <Play className="h-4 w-4" />
-                    </button>
-                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
-                      <Pause className="h-4 w-4" />
-                    </button>
-                    <button className="p-2 text-gray-600 hover:bg-gray-100 rounded transition-colors">
-                      <RotateCcw className="h-4 w-4" />
-                    </button>
-                  </div>
+                <div>
+                  <span className="font-medium">Batch Size:</span> {hyperparameters.batch_size}
+                </div>
+                <div>
+                  <span className="font-medium">Epochs:</span> {hyperparameters.epochs}
+                </div>
+                <div>
+                  <span className="font-medium">Weight Decay:</span> {hyperparameters.weight_decay}
+                </div>
+                <div>
+                  <span className="font-medium">Optimizer:</span> {hyperparameters.optimizer}
+                </div>
+                <div>
+                  <span className="font-medium">Scheduler:</span> {hyperparameters.scheduler}
                 </div>
               </div>
-              
-              {job.progress && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Progress</span>
-                    <span>{job.progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-indigo-600 h-2 rounded-full transition-all"
-                      style={{ width: `${job.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
             </div>
-          ))}
+          )}
+
+          <button
+            onClick={handleTraining}
+            disabled={isTraining}
+            className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            {isTraining ? 'Training in Progress...' : 'Start Advanced Training'}
+          </button>
+        </div>
+
+        {/* Data Analysis Panel */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4">Data Insights</h2>
+
+          {dataAnalysis ? (
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-sm text-gray-700">Dataset Statistics</h3>
+                <div className="text-sm space-y-1">
+                  <div>Total Tokens: {dataAnalysis.total_tokens?.toLocaleString()}</div>
+                  <div>Lines: {dataAnalysis.total_lines?.toLocaleString()}</div>
+                  <div>Avg Length: {dataAnalysis.average_line_length}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm text-gray-700">Quality Score</h3>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full" 
+                    style={{width: `${(dataAnalysis.quality_score || 0) * 100}%`}}
+                  ></div>
+                </div>
+                <span className="text-sm text-gray-600">
+                  {((dataAnalysis.quality_score || 0) * 100).toFixed(1)}%
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm text-gray-700">Content Types</h3>
+                {dataAnalysis.content_types && Object.entries(dataAnalysis.content_types).map(([type, ratio]) => (
+                  <div key={type} className="flex justify-between text-sm">
+                    <span className="capitalize">{type}:</span>
+                    <span>{(ratio * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm text-gray-700">Recommendations</h3>
+                <ul className="text-xs space-y-1">
+                  {dataAnalysis.recommendations?.map((rec, idx) => (
+                    <li key={idx} className="text-gray-600">• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              Add training data and click "Analyze Data" to see insights
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Training Progress */}
+      {isTraining && trainingProgress && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Training Progress</h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {trainingProgress.epoch}/{trainingProgress.total_epochs}
+              </div>
+              <div className="text-sm text-gray-600">Epochs</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {trainingProgress.loss?.toFixed(3)}
+              </div>
+              <div className="text-sm text-gray-600">Loss</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {(trainingProgress.accuracy * 100)?.toFixed(1)}%
+              </div>
+              <div className="text-sm text-gray-600">Accuracy</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {trainingProgress.eta_minutes}m
+              </div>
+              <div className="text-sm text-gray-600">ETA</div>
+            </div>
+          </div>
+
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div 
+              className="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+              style={{
+                width: `${(trainingProgress.samples_processed / trainingProgress.total_samples) * 100}%`
+              }}
+            ></div>
+          </div>
+          <div className="text-sm text-gray-600 mt-2">
+            {trainingProgress.samples_processed?.toLocaleString()} / {trainingProgress.total_samples?.toLocaleString()} samples
+          </div>
+        </div>
+      )}
+
+      {/* Training Results */}
+      {trainingResult && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4">Training Results</h2>
+
+          {trainingResult.status === 'success' ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-green-50 p-3 rounded-md">
+                  <div className="font-semibold text-green-800">Training Time</div>
+                  <div className="text-green-600">{trainingResult.training_time}</div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <div className="font-semibold text-blue-800">Final Loss</div>
+                  <div className="text-blue-600">{trainingResult.metrics?.final_loss}</div>
+                </div>
+                <div className="bg-purple-50 p-3 rounded-md">
+                  <div className="font-semibold text-purple-800">Epochs</div>
+                  <div className="text-purple-600">{trainingResult.metrics?.epochs_completed}</div>
+                </div>
+                <div className="bg-orange-50 p-3 rounded-md">
+                  <div className="font-semibold text-orange-800">Samples</div>
+                  <div className="text-orange-600">{trainingResult.metrics?.samples_processed}</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-md">
+                <pre className="text-sm overflow-auto">
+                  {JSON.stringify(trainingResult, null, 2)}
+                </pre>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="text-red-800 font-semibold">Training Failed</div>
+              <div className="text-red-600">{trainingResult.error}</div>
+            </div>
+          )}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 export default Training

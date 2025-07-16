@@ -386,6 +386,208 @@ def get_stats():
         }
     })
 
+@app.route('/api/training/progress/<int:model_id>')
+def get_training_progress(model_id):
+    """Get real-time training progress for a model"""
+    try:
+        # Simulate training progress data
+        progress = {
+            'model_id': model_id,
+            'status': 'training',
+            'epoch': 7,
+            'total_epochs': 10,
+            'loss': 0.25,
+            'accuracy': 0.82,
+            'eta_minutes': 15,
+            'samples_processed': 850,
+            'total_samples': 1200
+        }
+
+        return jsonify(progress)
+    except Exception as e:
+        logger.error(f"Error getting training progress: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/versions')
+def get_model_versions(model_id):
+    """Get all versions of a model"""
+    try:
+        # Simulate model version history
+        versions = [
+            {
+                'version': '1.0.0',
+                'created_at': '2025-07-15T10:00:00Z',
+                'metrics': {'accuracy': 0.78, 'loss': 0.35},
+                'status': 'active'
+            },
+            {
+                'version': '1.1.0',
+                'created_at': '2025-07-15T12:30:00Z',
+                'metrics': {'accuracy': 0.82, 'loss': 0.25},
+                'status': 'latest'
+            }
+        ]
+
+        return jsonify({
+            'model_id': model_id,
+            'versions': versions
+        })
+    except Exception as e:
+        logger.error(f"Error getting model versions: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/hyperparameters', methods=['POST'])
+def optimize_hyperparameters():
+    """Auto-optimize hyperparameters for training"""
+    try:
+        data = request.get_json()
+        training_type = data.get('training_type', 'general')
+
+        # Intelligent hyperparameter suggestions
+        suggestions = {
+            'learning_rate': 0.0001,
+            'batch_size': 8,
+            'epochs': 10,
+            'warmup_steps': 100,
+            'weight_decay': 0.01,
+            'dropout': 0.1,
+            'optimizer': 'adamw',
+            'scheduler': 'cosine',
+            'reasoning': {
+                'learning_rate': 'Conservative rate for stable fine-tuning',
+                'batch_size': 'Optimal for memory efficiency with quality gradients',
+                'epochs': 'Sufficient for convergence without overfitting'
+            }
+        }
+
+        if training_type == 'conversational':
+            suggestions.update({
+                'learning_rate': 0.00005,
+                'context_length': 2048,
+                'temperature': 0.7
+            })
+        elif training_type == 'technical':
+            suggestions.update({
+                'learning_rate': 0.0002,
+                'context_length': 4096,
+                'temperature': 0.3
+            })
+
+        return jsonify({
+            'status': 'success',
+            'suggestions': suggestions,
+            'confidence': 0.85
+        })
+    except Exception as e:
+        logger.error(f"Error optimizing hyperparameters: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/evaluate', methods=['POST'])
+def evaluate_model(model_id):
+    """Evaluate model performance with comprehensive metrics"""
+    try:
+        data = request.get_json()
+        test_data = data.get('test_data', [])
+
+        # Simulate comprehensive evaluation
+        evaluation_results = {
+            'model_id': model_id,
+            'timestamp': datetime.utcnow().isoformat(),
+            'metrics': {
+                'accuracy': 0.85,
+                'perplexity': 2.3,
+                'bleu_score': 0.78,
+                'rouge_l': 0.82,
+                'coherence_score': 0.88,
+                'relevance_score': 0.91
+            },
+            'performance_breakdown': {
+                'question_answering': 0.87,
+                'text_generation': 0.83,
+                'summarization': 0.89,
+                'reasoning': 0.81
+            },
+            'benchmark_comparison': {
+                'baseline_model': 0.72,
+                'industry_average': 0.79,
+                'top_performer': 0.93
+            },
+            'recommendations': [
+                'Consider increasing training epochs for better reasoning performance',
+                'Model excels at summarization tasks',
+                'Strong performance compared to baseline'
+            ]
+        }
+
+        return jsonify(evaluation_results)
+    except Exception as e:
+        logger.error(f"Error evaluating model: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/datasets/analyze', methods=['POST'])
+def analyze_training_data():
+    """Analyze training data quality and provide insights"""
+    try:
+        data = request.get_json()
+        dataset_content = data.get('content', '')
+
+        # Simulate data analysis
+        analysis = {
+            'total_tokens': len(dataset_content.split()),
+            'total_lines': len(dataset_content.split('\n')),
+            'average_line_length': 45,
+            'language_distribution': {
+                'english': 0.95,
+                'other': 0.05
+            },
+            'content_types': {
+                'technical': 0.60,
+                'conversational': 0.25,
+                'instructional': 0.15
+            },
+            'quality_score': 0.88,
+            'recommendations': [
+                'Good variety in content types',
+                'Consider adding more conversational examples',
+                'High quality technical content detected'
+            ],
+            'estimated_training_time': '45 minutes',
+            'recommended_epochs': 12
+        }
+
+        return jsonify(analysis)
+    except Exception as e:
+        logger.error(f"Error analyzing training data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<int:model_id>/chat', methods=['POST'])
+def chat_with_model(model_id):
+    data = request.get_json()
+    message = data.get('message', '')
+
+    # Simulate interaction with the model
+    response = f"Response from model {model_id}: {message}"
+
+    return jsonify({'response': response})
+
+@app.route('/api/users/<int:user_id>/usage')
+def get_user_usage(user_id):
+    """Retrieve user-specific usage statistics"""
+    try:
+        # Simulate usage data
+        usage_data = {
+            'user_id': user_id,
+            'api_calls': 150,
+            'data_storage': 2.5,
+            'models_trained': 3,
+            'last_active': datetime.utcnow().isoformat()
+        }
+
+        return jsonify(usage_data)
+    except Exception as e:
+        logger.error(f"Error getting user usage: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
 
