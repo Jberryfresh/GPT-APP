@@ -268,31 +268,31 @@ const Training = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Model Training Studio</h1>
-        <p className="text-gray-600">Train custom AI models with your data using advanced machine learning techniques</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">AI Model Training Studio</h1>
+        <p className="text-sm sm:text-base text-gray-600">Train custom AI models with your data using advanced machine learning techniques</p>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6">
+      <div className="flex flex-wrap sm:flex-nowrap gap-1 bg-gray-100 p-1 rounded-lg mb-6 overflow-x-auto">
         {[
-          { id: 'upload', label: 'Data Upload', icon: '📁' },
-          { id: 'configure', label: 'Configuration', icon: '⚙️' },
-          { id: 'train', label: 'Training', icon: '🚀' },
-          { id: 'evaluate', label: 'Evaluation', icon: '📊' },
-          { id: 'history', label: 'History', icon: '📈' }
+          { id: 'upload', label: 'Data Upload', icon: '📁', shortLabel: 'Upload' },
+          { id: 'configure', label: 'Configuration', icon: '⚙️', shortLabel: 'Config' },
+          { id: 'train', label: 'Training', icon: '🚀', shortLabel: 'Train' },
+          { id: 'evaluate', label: 'Evaluation', icon: '📊', shortLabel: 'Eval' },
+          { id: 'history', label: 'History', icon: '📈', shortLabel: 'History' }
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
+            className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md transition-colors whitespace-nowrap min-h-[44px] ${
               activeTab === tab.id 
                 ? 'bg-white text-blue-600 shadow-sm' 
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
             <span>{tab.icon}</span>
-            <span>{tab.label}</span>
+            <span className="text-xs sm:text-sm">{window.innerWidth < 640 ? tab.shortLabel : tab.label}</span>
           </button>
         ))}
       </div>

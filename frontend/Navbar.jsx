@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   Home, 
@@ -7,12 +7,12 @@ import {
   Zap, 
   Database, 
   Settings, 
-  User, 
-  LogOut,
-  Menu,
-  X,
   CreditCard,
-  MonitorHeart
+  MonitorHeart,
+  LogOut, 
+  User,
+  Menu,
+  X
 } from 'lucide-react'
 
 const navigation = [

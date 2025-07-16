@@ -32,14 +32,14 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('access_token')
-      
+
       // Fetch stats from API
       const statsResponse = await fetch('/api/v1/stats', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (statsResponse.ok) {
         const statsData = await statsResponse.json()
         setStats(statsData)
@@ -59,7 +59,7 @@ export default function Dashboard() {
           'Authorization': `Bearer ${token}`
         }
       })
-      
+
       if (activityResponse.ok) {
         const activityData = await activityResponse.json()
         setRecentActivity(activityData)
@@ -145,7 +145,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Models</CardTitle>
@@ -308,5 +308,3 @@ export default function Dashboard() {
     </div>
   )
 }
-
-
