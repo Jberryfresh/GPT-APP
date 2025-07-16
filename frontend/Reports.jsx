@@ -262,9 +262,10 @@ const Reports = () => {
             </div>
           </div>
         </div>
-      )}
+      )</div>
+      </div>
     </div>
   );
 };
 
-window.Reports = Reports;
+export default Reports;dow.Reports = Reports;

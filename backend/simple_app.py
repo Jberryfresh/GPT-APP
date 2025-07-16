@@ -40,14 +40,14 @@ CORS(app, origins=['*'], supports_credentials=True)
 def get_db_connection():
     database_url = os.environ.get('DATABASE_URL')
     if not database_url:
-        logger.error("DATABASE_URL environment variable not set")
+        logger.warning("DATABASE_URL environment variable not set, using fallback mode")
         return None
 
     try:
         conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:
-        logger.error(f"Database connection failed: {e}")
+        logger.warning(f"Database connection failed, using fallback mode: {e}")
         return None
 
 # Initialize database tables
@@ -859,7 +859,8 @@ def training_status(model_id):
     return jsonify({'success': False, 'error': 'Model not found'}), 404
 
 # Database stats endpoint
-@app.route('/api/stats', methods=['GET'])
+@app.route('/api/v1/stats', methods=['GET'])
+@app.route('/api/stats', methods=['GET'])  # Keep old route for compatibility
 def get_stats():
     users_data = get_users()
     models_data = get_models()
