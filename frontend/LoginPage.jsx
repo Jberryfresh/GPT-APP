@@ -36,7 +36,7 @@ function LoginPage({ onLogin }) {
     }
 
     try {
-      const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register'
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register'
       const payload = isLogin 
         ? { email: formData.email, password: formData.password }
         : {
@@ -77,7 +77,7 @@ function LoginPage({ onLogin }) {
     
     try {
       // Redirect to Google OAuth endpoint
-      window.location.href = '/api/v1/auth/google'
+      window.location.href = '/api/auth/google'
     } catch (error) {
       setError('Google login failed. Please try again.')
       setLoading(false)

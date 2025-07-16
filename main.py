@@ -68,4 +68,18 @@ def main():
         print("\n🛑 Shutting down...")
 
 if __name__ == "__main__":
-    main()
+    import subprocess
+    import sys
+    import os
+
+    # Run the backend server
+    print("Starting Custom GPT System...")
+    print("Backend server will be available on port 5000")
+    print("Check the webview to see your application.")
+
+    try:
+        # Run the backend server directly
+        subprocess.run([sys.executable, "backend/simple_app.py"])
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        sys.exit(0)
