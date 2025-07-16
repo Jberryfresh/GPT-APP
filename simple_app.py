@@ -588,6 +588,141 @@ def get_user_usage(user_id):
         logger.error(f"Error getting user usage: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/monitoring/system-health')
+def get_system_health():
+    """Get comprehensive system health information"""
+    try:
+        import psutil
+        import time
+        
+        # Memory information
+        memory = psutil.virtual_memory()
+        process = psutil.Process()
+        process_memory = process.memory_info().rss / (1024**3)  # GB
+        
+        warnings = []
+        if process_memory > 6:
+            warnings.append(f"High memory usage: {process_memory:.2f}GB")
+        
+        health_data = {
+            'timestamp': datetime.now().isoformat(),
+            'overall_status': 'warning' if warnings else 'healthy',
+            'memory': {
+                'status': 'warning' if process_memory > 6 else 'healthy',
+                'memory_usage': {
+                    'system_memory_gb': memory.total / (1024**3),
+                    'available_memory_gb': memory.available / (1024**3),
+                    'process_memory_gb': process_memory,
+                    'memory_percent': process.memory_percent()
+                },
+                'warnings': warnings
+            },
+            'dependencies': {
+                'psutil_available': True,
+                'database_available': get_db_connection() is not None,
+                'transformers_available': True,  # Assuming available
+                'torch_available': True  # Assuming available
+            }
+        }
+        
+        return jsonify(health_data)
+    except ImportError:
+        # Fallback if psutil not available
+        health_data = {
+            'timestamp': datetime.now().isoformat(),
+            'overall_status': 'healthy',
+            'memory': {
+                'status': 'unknown',
+                'memory_usage': {},
+                'warnings': ['Memory monitoring unavailable - psutil not installed']
+            },
+            'dependencies': {
+                'psutil_available': False,
+                'database_available': get_db_connection() is not None,
+                'transformers_available': True,
+                'torch_available': True
+            }
+        }
+        return jsonify(health_data)
+    except Exception as e:
+        logger.error(f"Error getting system health: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/monitoring/performance')
+def get_performance_metrics():
+    """Get performance metrics and statistics"""
+    try:
+        # Simulate performance data - replace with actual metrics collection
+        import time
+        import random
+        
+        uptime = time.time() - 1642694400  # Simulate uptime from some start time
+        
+        performance_data = {
+            'uptime_seconds': uptime,
+            'total_requests': random.randint(500, 2000),
+            'error_count': random.randint(0, 50),
+            'error_rate': random.uniform(0.5, 5.0),
+            'requests_per_second': random.uniform(1.0, 10.0),
+            'avg_response_time': random.uniform(100, 800),
+            'min_response_time': random.uniform(50, 150),
+            'max_response_time': random.uniform(800, 2000),
+            'p50_response_time': random.uniform(150, 400),
+            'p95_response_time': random.uniform(400, 800),
+            'p99_response_time': random.uniform(800, 1500),
+            'model_stats': {
+                'model_1': {
+                    'requests': random.randint(100, 500),
+                    'errors': random.randint(0, 10),
+                    'total_time': random.uniform(1000, 5000),
+                    'avg_response_time': random.uniform(200, 600)
+                },
+                'model_2': {
+                    'requests': random.randint(50, 300),
+                    'errors': random.randint(0, 5),
+                    'total_time': random.uniform(500, 3000),
+                    'avg_response_time': random.uniform(150, 500)
+                }
+            }
+        }
+        
+        return jsonify(performance_data)
+    except Exception as e:
+        logger.error(f"Error getting performance metrics: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/monitoring/alerts')
+def get_alerts():
+    """Get system alerts and notifications"""
+    try:
+        # Simulate alerts - replace with actual alert system
+        alerts = [
+            {
+                'id': 1,
+                'type': 'warning',
+                'message': 'High memory usage detected',
+                'timestamp': datetime.now().isoformat(),
+                'severity': 'medium',
+                'resolved': False
+            },
+            {
+                'id': 2,
+                'type': 'info',
+                'message': 'Model training completed successfully',
+                'timestamp': (datetime.now() - timedelta(minutes=30)).isoformat(),
+                'severity': 'low',
+                'resolved': True
+            }
+        ]
+        
+        return jsonify({
+            'alerts': alerts,
+            'unresolved_count': len([a for a in alerts if not a['resolved']])
+        })
+    except Exception as e:
+        logger.error(f"Error getting alerts: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
 

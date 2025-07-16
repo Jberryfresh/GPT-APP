@@ -1,396 +1,371 @@
 
-import { useState, useEffect } from 'react'
-import { 
-  Activity, 
-  AlertTriangle, 
-  Clock, 
-  Database,
-  Brain,
-  TrendingUp,
-  Server,
-  Zap,
-  RefreshCw,
-  Download
-} from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import React, { useState, useEffect } from 'react';
 
-export default function MonitoringDashboard() {
-  const [metrics, setMetrics] = useState(null)
-  const [alerts, setAlerts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+const MonitoringDashboard = () => {
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
+  const [modelStats, setModelStats] = useState({});
+  const [alerts, setAlerts] = useState([]);
+  const [refreshInterval, setRefreshInterval] = useState(30); // seconds
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   useEffect(() => {
-    fetchMetrics()
-    
+    fetchSystemHealth();
+    fetchPerformanceMetrics();
+    fetchAlerts();
+
+    let interval;
     if (autoRefresh) {
-      const interval = setInterval(fetchMetrics, 30000) // Refresh every 30 seconds
-      return () => clearInterval(interval)
+      interval = setInterval(() => {
+        fetchSystemHealth();
+        fetchPerformanceMetrics();
+      }, refreshInterval * 1000);
     }
-  }, [autoRefresh])
 
-  const fetchMetrics = async () => {
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh, refreshInterval]);
+
+  const fetchSystemHealth = async () => {
     try {
-      const token = localStorage.getItem('access_token')
-      
-      const [metricsResponse, alertsResponse] = await Promise.all([
-        fetch('/api/v1/metrics', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/v1/alerts', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ])
-
-      if (metricsResponse.ok) {
-        const metricsData = await metricsResponse.json()
-        setMetrics(metricsData.data)
-      }
-
-      if (alertsResponse.ok) {
-        const alertsData = await alertsResponse.json()
-        setAlerts(alertsData.data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch monitoring data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const exportMetrics = async () => {
-    try {
-      const token = localStorage.getItem('access_token')
-      const response = await fetch('/api/v1/monitoring/export', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
+      const response = await fetch('/api/monitoring/system-health');
       if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `metrics_${Date.now()}.json`
-        a.click()
-        window.URL.revokeObjectURL(url)
+        const data = await response.json();
+        setSystemHealth(data);
       }
     } catch (error) {
-      console.error('Failed to export metrics:', error)
+      console.error('Error fetching system health:', error);
     }
-  }
+  };
 
-  const getAlertBadgeColor = (type) => {
+  const fetchPerformanceMetrics = async () => {
+    try {
+      const response = await fetch('/api/monitoring/performance');
+      if (response.ok) {
+        const data = await response.json();
+        setPerformanceMetrics(data);
+        setModelStats(data.model_stats || {});
+      }
+    } catch (error) {
+      console.error('Error fetching performance metrics:', error);
+    }
+  };
+
+  const fetchAlerts = async () => {
+    try {
+      // Simulate alerts - replace with actual API call
+      const mockAlerts = [
+        {
+          id: 1,
+          type: 'warning',
+          message: 'High memory usage detected (85%)',
+          timestamp: new Date().toISOString(),
+          severity: 'medium'
+        },
+        {
+          id: 2,
+          type: 'info',
+          message: 'Model training completed successfully',
+          timestamp: new Date(Date.now() - 300000).toISOString(),
+          severity: 'low'
+        }
+      ];
+      setAlerts(mockAlerts);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    }
+  };
+
+  const StatusIndicator = ({ status, label }) => {
     const colors = {
-      'high_response_time': 'destructive',
-      'high_error_rate': 'destructive',
-      'high_cpu_usage': 'secondary',
-      'high_memory_usage': 'secondary'
-    }
-    return colors[type] || 'default'
-  }
+      healthy: 'bg-green-500',
+      warning: 'bg-yellow-500',
+      critical: 'bg-red-500',
+      unknown: 'bg-gray-500'
+    };
 
-  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex items-center space-x-2">
+        <div className={`w-3 h-3 rounded-full ${colors[status] || colors.unknown}`}></div>
+        <span className="text-sm text-gray-600">{label}</span>
       </div>
-    )
+    );
+  };
+
+  const MetricCard = ({ title, value, unit, status, description }) => (
+    <div className="bg-white p-6 rounded-lg border shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-gray-600">{title}</h3>
+        {status && <StatusIndicator status={status} label="" />}
+      </div>
+      <div className="flex items-baseline">
+        <p className="text-3xl font-bold text-gray-900">{value}</p>
+        {unit && <span className="ml-1 text-sm text-gray-500">{unit}</span>}
+      </div>
+      {description && (
+        <p className="mt-1 text-sm text-gray-600">{description}</p>
+      )}
+    </div>
+  );
+
+  const AlertCard = ({ alert }) => {
+    const icons = {
+      error: '🚨',
+      warning: '⚠️',
+      info: 'ℹ️',
+      success: '✅'
+    };
+
+    const colors = {
+      error: 'border-red-300 bg-red-50',
+      warning: 'border-yellow-300 bg-yellow-50',
+      info: 'border-blue-300 bg-blue-50',
+      success: 'border-green-300 bg-green-50'
+    };
+
+    return (
+      <div className={`p-4 rounded-lg border ${colors[alert.type] || colors.info}`}>
+        <div className="flex items-start space-x-3">
+          <span className="text-xl">{icons[alert.type] || icons.info}</span>
+          <div className="flex-1">
+            <p className="font-medium text-gray-900">{alert.message}</p>
+            <p className="text-sm text-gray-600 mt-1">
+              {new Date(alert.timestamp).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!systemHealth || !performanceMetrics) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">System Monitoring</h1>
-          <p className="text-gray-600">Real-time performance and health metrics</p>
+          <p className="text-gray-600 mt-1">Real-time system health and performance metrics</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-gray-600">Auto-refresh:</label>
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={refreshInterval}
+            onChange={(e) => setRefreshInterval(parseInt(e.target.value))}
+            className="text-sm border border-gray-300 rounded px-2 py-1"
+            disabled={!autoRefresh}
           >
-            <Activity className={`h-4 w-4 mr-2 ${autoRefresh ? 'text-green-500' : 'text-gray-400'}`} />
-            Auto Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={fetchMetrics}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportMetrics}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+            <option value={10}>10s</option>
+            <option value={30}>30s</option>
+            <option value={60}>1m</option>
+            <option value={300}>5m</option>
+          </select>
         </div>
       </div>
 
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-800 flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2" />
-              Active Alerts ({alerts.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {alerts.slice(0, 5).map((alert, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
-                  <div className="flex items-center space-x-3">
-                    <Badge variant={getAlertBadgeColor(alert.type)}>
-                      {alert.type.replace('_', ' ').toUpperCase()}
-                    </Badge>
-                    <span className="text-sm">
-                      {alert.endpoint && `${alert.endpoint}: `}
-                      {alert.value?.toFixed(2)} exceeds threshold {alert.threshold}
-                    </span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {new Date(alert.timestamp).toLocaleTimeString()}
+      {/* System Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <MetricCard
+          title="System Status"
+          value={systemHealth.overall_status}
+          status={systemHealth.overall_status}
+          description="Overall system health"
+        />
+        <MetricCard
+          title="Uptime"
+          value={Math.round(performanceMetrics.uptime_seconds / 3600)}
+          unit="hours"
+          description="System uptime"
+        />
+        <MetricCard
+          title="Total Requests"
+          value={performanceMetrics.total_requests?.toLocaleString()}
+          description="API requests processed"
+        />
+        <MetricCard
+          title="Error Rate"
+          value={performanceMetrics.error_rate?.toFixed(2)}
+          unit="%"
+          status={performanceMetrics.error_rate > 5 ? 'warning' : performanceMetrics.error_rate > 10 ? 'critical' : 'healthy'}
+          description="Request error percentage"
+        />
+      </div>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Response Times */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Response Times</h2>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Average:</span>
+              <span className="font-medium">{performanceMetrics.avg_response_time?.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">P50:</span>
+              <span className="font-medium">{performanceMetrics.p50_response_time?.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">P95:</span>
+              <span className="font-medium">{performanceMetrics.p95_response_time?.toFixed(2)}ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">P99:</span>
+              <span className="font-medium">{performanceMetrics.p99_response_time?.toFixed(2)}ms</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Memory Usage */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <h2 className="text-lg font-semibold mb-4">Memory Usage</h2>
+          {systemHealth.memory && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-gray-600">Process Memory</span>
+                  <span className="font-medium">
+                    {systemHealth.memory.memory_usage.process_memory_gb?.toFixed(2)} GB
                   </span>
                 </div>
-              ))}
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full"
+                    style={{ 
+                      width: `${Math.min(
+                        (systemHealth.memory.memory_usage.process_memory_gb / 8) * 100, 
+                        100
+                      )}%` 
+                    }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-gray-600">Available Memory</span>
+                  <span className="font-medium">
+                    {systemHealth.memory.memory_usage.available_memory_gb?.toFixed(2)} GB
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-600 h-2 rounded-full"
+                    style={{ 
+                      width: `${Math.min(
+                        (systemHealth.memory.memory_usage.available_memory_gb / 
+                         systemHealth.memory.memory_usage.system_memory_gb) * 100, 
+                        100
+                      )}%` 
+                    }}
+                  ></div>
+                </div>
+              </div>
+
+              {systemHealth.memory.warnings.length > 0 && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <h4 className="text-sm font-medium text-yellow-800 mb-1">Memory Warnings:</h4>
+                  {systemHealth.memory.warnings.map((warning, index) => (
+                    <p key={index} className="text-sm text-yellow-700">• {warning}</p>
+                  ))}
+                </div>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Model Statistics */}
+      {Object.keys(modelStats).length > 0 && (
+        <div className="bg-white p-6 rounded-lg border shadow-sm mb-8">
+          <h2 className="text-lg font-semibold mb-4">Model Performance</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(modelStats).map(([modelId, stats]) => (
+              <div key={modelId} className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-medium text-gray-900 mb-2">Model {modelId}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Requests:</span>
+                    <span className="font-medium">{stats.requests?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Errors:</span>
+                    <span className="font-medium">{stats.errors}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Avg Response:</span>
+                    <span className="font-medium">{stats.avg_response_time?.toFixed(2)}ms</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Error Rate:</span>
+                    <span className={`font-medium ${
+                      (stats.errors / Math.max(stats.requests, 1)) > 0.1 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {((stats.errors / Math.max(stats.requests, 1)) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="api">API Metrics</TabsTrigger>
-          <TabsTrigger value="database">Database</TabsTrigger>
-          <TabsTrigger value="models">Models</TabsTrigger>
-        </TabsList>
+      {/* Dependencies Status */}
+      <div className="bg-white p-6 rounded-lg border shadow-sm mb-8">
+        <h2 className="text-lg font-semibold mb-4">System Dependencies</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {systemHealth.dependencies && Object.entries(systemHealth.dependencies).map(([dep, available]) => (
+            <StatusIndicator
+              key={dep}
+              status={available ? 'healthy' : 'critical'}
+              label={dep.replace('_available', '').toUpperCase()}
+            />
+          ))}
+        </div>
+      </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          {/* System Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-                <Server className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {metrics?.api_metrics?.system?.cpu_avg?.toFixed(1) || 0}%
-                </div>
-                <div className={`text-xs ${
-                  (metrics?.api_metrics?.system?.cpu_avg || 0) > 80 ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  System CPU usage
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-                <Database className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {metrics?.api_metrics?.system?.memory_avg?.toFixed(1) || 0}%
-                </div>
-                <div className={`text-xs ${
-                  (metrics?.api_metrics?.system?.memory_avg || 0) > 85 ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  System memory usage
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Requests</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {metrics?.api_metrics?.system?.active_requests || 0}
-                </div>
-                <div className="text-xs text-gray-600">
-                  Currently processing
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Error Rate</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {(() => {
-                    const totalRequests = Object.values(metrics?.api_metrics?.requests || {}).reduce((a, b) => a + b, 0)
-                    const totalErrors = metrics?.api_metrics?.errors?.total_count || 0
-                    const errorRate = totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0
-                    return errorRate.toFixed(2)
-                  })()}%
-                </div>
-                <div className="text-xs text-gray-600">
-                  Error percentage
-                </div>
-              </CardContent>
-            </Card>
+      {/* Recent Alerts */}
+      <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <h2 className="text-lg font-semibold mb-4">Recent Alerts</h2>
+        {alerts.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <span className="text-4xl">✅</span>
+            <p className="mt-2">No recent alerts. System is running smoothly!</p>
           </div>
-        </TabsContent>
-
-        <TabsContent value="api" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Response Times</CardTitle>
-                <CardDescription>Average response times by endpoint</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(metrics?.api_metrics?.response_times || {}).map(([endpoint, stats]) => (
-                    <div key={endpoint} className="flex justify-between items-center">
-                      <div>
-                        <div className="font-medium text-sm">{endpoint}</div>
-                        <div className="text-xs text-gray-500">{stats.count} requests</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium">{stats.avg.toFixed(0)}ms</div>
-                        <div className="text-xs text-gray-500">P95: {stats.p95.toFixed(0)}ms</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Status Codes</CardTitle>
-                <CardDescription>HTTP response status distribution</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {Object.entries(metrics?.api_metrics?.status_codes || {}).map(([code, count]) => (
-                    <div key={code} className="flex justify-between items-center">
-                      <Badge variant={code.startsWith('2') ? 'default' : code.startsWith('4') ? 'secondary' : 'destructive'}>
-                        {code}
-                      </Badge>
-                      <span className="font-medium">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="database" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Query Performance</CardTitle>
-                <CardDescription>Database query metrics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span>Total Queries</span>
-                    <span className="font-medium">{metrics?.database_metrics?.query_count || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Avg Query Time</span>
-                    <span className="font-medium">
-                      {metrics?.database_metrics?.avg_query_time?.toFixed(2) || 0}ms
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>P95 Query Time</span>
-                    <span className="font-medium">
-                      {metrics?.database_metrics?.p95_query_time?.toFixed(2) || 0}ms
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Slow Queries</span>
-                    <span className="font-medium text-orange-600">
-                      {metrics?.database_metrics?.slow_query_count || 0}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Slow Queries</CardTitle>
-                <CardDescription>Queries taking over 1 second</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {(metrics?.database_metrics?.recent_slow_queries || []).map((query, index) => (
-                    <div key={index} className="p-2 bg-orange-50 rounded border border-orange-200">
-                      <div className="text-sm font-medium">{query.execution_time.toFixed(2)}ms</div>
-                      <div className="text-xs text-gray-600 truncate">{query.query}</div>
-                    </div>
-                  ))}
-                  {(!metrics?.database_metrics?.recent_slow_queries?.length) && (
-                    <p className="text-sm text-gray-500">No recent slow queries</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="models" className="space-y-4">
-          <div className="grid grid-cols-1 gap-6">
-            {Object.entries(metrics?.model_metrics || {}).map(([modelId, stats]) => (
-              <Card key={modelId}>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Brain className="h-5 w-5 mr-2" />
-                    {modelId}
-                  </CardTitle>
-                  <CardDescription>Model performance metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-2xl font-bold">{stats.total_requests}</div>
-                      <div className="text-xs text-gray-600">Total Requests</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-red-600">{stats.error_count}</div>
-                      <div className="text-xs text-gray-600">Errors</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold">{stats.avg_tokens_per_second?.toFixed(1)}</div>
-                      <div className="text-xs text-gray-600">Avg Tokens/sec</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold">
-                        {((1 - stats.error_count / stats.total_requests) * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-gray-600">Success Rate</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        ) : (
+          <div className="space-y-3">
+            {alerts.map(alert => (
+              <AlertCard key={alert.id} alert={alert} />
             ))}
-            {Object.keys(metrics?.model_metrics || {}).length === 0 && (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No model metrics available yet</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
-  )
-}
+  );
+};
+
+export default MonitoringDashboard;
