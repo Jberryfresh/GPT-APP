@@ -136,25 +136,26 @@ export default function Chat() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-6">
+    <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4 lg:gap-6">
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         <Card className="flex-1 flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <CardTitle className="flex items-center space-x-2">
-                <MessageSquare className="h-5 w-5" />
-                <span>Chat with {models.find(m => m.id === selectedModel)?.name}</span>
+                <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                <span className="truncate">Chat with {models.find(m => m.id === selectedModel)?.name}</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="hidden sm:block">
                 Interact with your custom GPT model
               </CardDescription>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-shrink-0">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowSettings(!showSettings)}
+                className="lg:hidden"
               >
                 <Settings className="h-4 w-4" />
               </Button>
@@ -168,16 +169,16 @@ export default function Chat() {
             </div>
           </CardHeader>
 
-          <CardContent className="flex-1 flex flex-col p-0">
+          <CardContent className="flex-1 flex flex-col p-0 min-h-0">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg p-4 ${
+                    className={`max-w-[85%] sm:max-w-[80%] rounded-lg p-3 sm:p-4 ${
                       message.role === 'user'
                         ? 'bg-indigo-600 text-white'
                         : 'bg-gray-100 text-gray-900'
@@ -185,13 +186,13 @@ export default function Chat() {
                   >
                     <div className="flex items-start space-x-2">
                       {message.role === 'assistant' && (
-                        <Bot className="h-5 w-5 mt-0.5 text-indigo-600" />
+                        <Bot className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 text-indigo-600 flex-shrink-0" />
                       )}
                       {message.role === 'user' && (
-                        <User className="h-5 w-5 mt-0.5 text-white" />
+                        <User className="h-4 w-4 sm:h-5 sm:w-5 mt-0.5 text-white flex-shrink-0" />
                       )}
-                      <div className="flex-1">
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
                         <p className={`text-xs mt-2 ${
                           message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
                         }`}>
@@ -205,9 +206,9 @@ export default function Chat() {
 
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="bg-gray-100 rounded-lg p-3 sm:p-4">
                     <div className="flex items-center space-x-2">
-                      <Bot className="h-5 w-5 text-indigo-600" />
+                      <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
                       <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                       <span className="text-sm text-gray-500">Thinking...</span>
                     </div>
@@ -218,9 +219,9 @@ export default function Chat() {
             </div>
 
             {/* Input Area */}
-            <div className="border-t p-6">
-              <div className="flex space-x-4">
-                <div className="flex-1">
+            <div className="border-t p-3 sm:p-6">
+              <div className="flex space-x-2 sm:space-x-4">
+                <div className="flex-1 min-w-0">
                   <Input
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
@@ -233,7 +234,7 @@ export default function Chat() {
                 <Button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading}
-                  className="px-6"
+                  className="px-4 sm:px-6 flex-shrink-0"
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,12 +249,12 @@ export default function Chat() {
       </div>
 
       {/* Sidebar */}
-      <div className="w-80 space-y-6">
+      <div className="w-full lg:w-80 space-y-4 lg:space-y-6">
         {/* Model Selection */}
         <Card>
           <CardHeader>
             <CardTitle>Model Selection</CardTitle>
-            <CardDescription>
+            <CardDescription className="hidden sm:block">
               Choose which model to chat with
             </CardDescription>
           </CardHeader>
@@ -266,8 +267,8 @@ export default function Chat() {
                 {models.map((model) => (
                   <SelectItem key={model.id} value={model.id} disabled={model.status !== 'active'}>
                     <div className="flex items-center justify-between w-full">
-                      <span>{model.name}</span>
-                      <Badge variant={model.status === 'active' ? 'default' : 'secondary'}>
+                      <span className="truncate">{model.name}</span>
+                      <Badge variant={model.status === 'active' ? 'default' : 'secondary'} className="ml-2 flex-shrink-0">
                         {model.status}
                       </Badge>
                     </div>
@@ -283,11 +284,11 @@ export default function Chat() {
           <Card>
             <CardHeader>
               <CardTitle>Chat Settings</CardTitle>
-              <CardDescription>
+              <CardDescription className="hidden sm:block">
                 Adjust model parameters
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 sm:space-y-6">
               <div className="space-y-2">
                 <Label>Temperature: {chatSettings.temperature}</Label>
                 <Slider
@@ -333,22 +334,24 @@ export default function Chat() {
         )}
 
         {/* Chat Statistics */}
-        <Card>
+        <Card className="lg:block">
           <CardHeader>
             <CardTitle>Session Stats</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Messages</span>
-              <span className="text-sm font-medium">{messages.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Model</span>
-              <span className="text-sm font-medium">{selectedModel}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-gray-600">Tokens Used</span>
-              <span className="text-sm font-medium">~{messages.length * 20}</span>
+            <div className="grid grid-cols-3 lg:grid-cols-1 gap-4 lg:gap-0 lg:space-y-4">
+              <div className="flex flex-col lg:flex-row lg:justify-between">
+                <span className="text-sm text-gray-600">Messages</span>
+                <span className="text-sm font-medium">{messages.length}</span>
+              </div>
+              <div className="flex flex-col lg:flex-row lg:justify-between">
+                <span className="text-sm text-gray-600">Model</span>
+                <span className="text-sm font-medium truncate">{selectedModel}</span>
+              </div>
+              <div className="flex flex-col lg:flex-row lg:justify-between">
+                <span className="text-sm text-gray-600">Tokens Used</span>
+                <span className="text-sm font-medium">~{messages.length * 20}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
