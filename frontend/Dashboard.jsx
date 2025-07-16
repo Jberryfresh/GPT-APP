@@ -31,7 +31,7 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('access_token')
+      const token = localStorage.getItem('authToken') // Fix: use authToken instead of access_token
 
       // Fetch stats from API
       const statsResponse = await fetch('/api/v1/stats', {
@@ -42,7 +42,13 @@ export default function Dashboard() {
 
       if (statsResponse.ok) {
         const statsData = await statsResponse.json()
-        setStats(statsData)
+        // Ensure all values are numbers and not undefined
+        setStats({
+          models: statsData.models || 0,
+          trainingJobs: statsData.trainingJobs || 0,
+          apiCalls: statsData.apiCalls || 0,
+          users: statsData.users || 0
+        })
       } else {
         // Fallback to demo data if API not available
         setStats({
@@ -62,7 +68,7 @@ export default function Dashboard() {
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json()
-        setRecentActivity(activityData)
+        setRecentActivity(Array.isArray(activityData) ? activityData : [])
       } else {
         // Fallback to demo data
         setRecentActivity([
@@ -178,7 +184,7 @@ export default function Dashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.apiCalls.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{(stats.apiCalls || 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               +12% from last month
             </p>
