@@ -23,7 +23,7 @@ def get_db_connection():
     if not database_url:
         logger.error("DATABASE_URL environment variable not set")
         return None
-    
+
     try:
         conn = psycopg2.connect(database_url, cursor_factory=RealDictCursor)
         return conn
@@ -36,10 +36,10 @@ def init_database():
     conn = get_db_connection()
     if not conn:
         return False
-    
+
     try:
         cursor = conn.cursor()
-        
+
         # Create users table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -50,7 +50,7 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Create models table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS models (
@@ -62,7 +62,7 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Create conversations table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
@@ -73,11 +73,11 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         conn.commit()
         logger.info("Database tables initialized successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         conn.rollback()
@@ -91,7 +91,7 @@ def get_users():
     conn = get_db_connection()
     if not conn:
         return {}
-    
+
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users")
@@ -108,7 +108,7 @@ def save_user(email, password_hash, subscription_tier='free'):
     conn = get_db_connection()
     if not conn:
         return False
-    
+
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -128,7 +128,7 @@ def get_models():
     conn = get_db_connection()
     if not conn:
         return {}
-    
+
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM models")
@@ -145,7 +145,7 @@ def get_conversations():
     conn = get_db_connection()
     if not conn:
         return {}
-    
+
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM conversations")
@@ -158,6 +158,28 @@ def get_conversations():
         cursor.close()
         conn.close()
 
+def save_to_fallback(entity_type, entity_id, data):
+    """
+    Saves data to a JSON file as a fallback mechanism.
+    """
+    filename = f"{entity_type}_fallback.json"
+    try:
+        # Read existing data
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                all_data = json.load(f)
+        else:
+            all_data = {}
+
+        # Update with new data
+        all_data[entity_id] = data
+
+        # Write back to file
+        with open(filename, 'w') as f:
+            json.dump(all_data, f, indent=4)
+        logger.info(f"Data saved to fallback file {filename} for {entity_type} id {entity_id}")
+    except Exception as e:
+        logger.error(f"Error saving to fallback file: {e}")
 
 # Serve React frontend
 @app.route('/')
@@ -199,7 +221,8 @@ def login():
             'created_at': datetime.now().isoformat()
         }
         users_data[user_id] = user
-        save_users(users_data)
+        # Note: Using old simple format for demo - replace with save_user() for full PostgreSQL integration
+        save_to_fallback('users', user_id, user)
 
         return jsonify({
             'success': True,
@@ -228,7 +251,8 @@ def register():
             'created_at': datetime.now().isoformat()
         }
         users_data[user_id] = user
-        save_users(users_data)
+        # Note: Using old simple format for demo - replace with save_user() for full PostgreSQL integration
+        save_to_fallback('users', user_id, user)
         return jsonify({
             'success': True,
             'user': users_data[user_id],
@@ -262,7 +286,8 @@ def create_model():
     }
 
     models_data[model_id] = model
-    save_models(models_data)
+    # Note: Using old simple format for demo - replace with save_models() for full PostgreSQL integration
+    save_to_fallback('models', model_id, model)
 
     return jsonify({
         'success': True,
@@ -294,7 +319,8 @@ def chat():
     }
 
     conversations_data[conversation_id] = conversation
-    save_conversations(conversations_data)
+    # Note: Using old simple format for demo - replace with save_conversations() for full PostgreSQL integration
+    save_to_fallback('conversations', conversation_id, conversation)
 
     return jsonify({
         'success': True,
@@ -321,7 +347,8 @@ def start_training():
     if model_id in models_data:
         models_data[model_id]['status'] = 'training'
         models_data[model_id]['training_started'] = datetime.now().isoformat()
-        save_models(models_data)
+        # Note: Using old simple format for demo - replace with save_models() for full PostgreSQL integration
+        save_to_fallback('models', model_id, models_data[model_id])
 
         return jsonify({
             'success': True,
@@ -361,11 +388,11 @@ def get_stats():
 
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
-    
+
     # Initialize database tables
     if init_database():
         logger.info("Database initialized successfully")
     else:
         logger.error("Failed to initialize database")
-    
+
     app.run(host='0.0.0.0', port=5000, debug=True)
