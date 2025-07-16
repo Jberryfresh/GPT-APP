@@ -16,9 +16,22 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('authToken');
+    // Check for OAuth token in URL (from Google OAuth redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
     if (token) {
+      localStorage.setItem('authToken', token);
+      setIsAuthenticated(true);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setLoading(false);
+      return;
+    }
+
+    // Check if user is already logged in
+    const existingToken = localStorage.getItem('authToken');
+    if (existingToken) {
       setIsAuthenticated(true);
     }
     setLoading(false);
