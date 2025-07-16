@@ -10,6 +10,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from monitoring import get_comprehensive_metrics, performance_monitor, metrics_collector
 from auth import require_admin
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 monitoring_bp = Blueprint('monitoring', __name__)
 
@@ -146,7 +149,8 @@ def export_metrics():
 def detailed_health():
     """Get detailed health information."""
     try:
-        health_data = monitor.get_health_summary()
+        from monitoring import metrics_collector
+        health_data = metrics_collector.get_metrics_summary()
 
         # Add model manager health if available
         from flask import current_app
@@ -266,5 +270,4 @@ def cleanup_memory():
         }), 500
 
 # Export blueprint
-monitoring_bp = Blueprint('monitoring', __name__)
 __all__ = ['monitoring_bp']

@@ -89,26 +89,13 @@ def create_app():
         app.model_manager = None
 
     # Register blueprints
-    try:
-        app.register_blueprint(auth_bp, url_prefix='/api/v1')
-        app.register_blueprint(chat_bp, url_prefix='/api/v1')
-        app.register_blueprint(health_bp, url_prefix='/api/v1')
-        app.register_blueprint(billing_bp, url_prefix='/api/v1')
-        app.register_blueprint(training_bp, url_prefix='/api/v1')
-        app.register_blueprint(api_stats_bp, url_prefix='/api/v1')
-        app.register_blueprint(monitoring_bp, url_prefix='/api/v1')
-    except AssertionError as e:
-        logger.error(f"Blueprint registration error: {e}")
-        # Clear existing rules and re-register
-        app.url_map._rules.clear()
-        app.url_map._rules_by_endpoint.clear()
-        app.register_blueprint(auth_bp, url_prefix='/api/v1')
-        app.register_blueprint(chat_bp, url_prefix='/api/v1')
-        app.register_blueprint(health_bp, url_prefix='/api/v1')
-        app.register_blueprint(billing_bp, url_prefix='/api/v1')
-        app.register_blueprint(training_bp, url_prefix='/api/v1')
-        app.register_blueprint(api_stats_bp, url_prefix='/api/v1')
-        app.register_blueprint(monitoring_bp, url_prefix='/api/v1')
+    app.register_blueprint(auth_bp, url_prefix='/api/v1')
+    app.register_blueprint(chat_bp, url_prefix='/api/v1')
+    app.register_blueprint(health_bp, url_prefix='/api/v1')
+    app.register_blueprint(billing_bp, url_prefix='/api/v1')
+    app.register_blueprint(training_bp, url_prefix='/api/v1')
+    app.register_blueprint(api_stats_bp, url_prefix='/api/v1')
+    app.register_blueprint(monitoring_bp, url_prefix='/api/v1')
 
     # Serve React frontend
     @app.route('/')
@@ -183,9 +170,6 @@ def main():
     logger.info(f"Environment: {config.environment}")
     logger.info(f"Debug mode: {config.debug}")
     logger.info(f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
-
-    app = create_app()
-    config = get_config()
 
     app.run(
         host=config.api.host,
