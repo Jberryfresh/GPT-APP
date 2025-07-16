@@ -408,17 +408,19 @@ def save_to_fallback(entity_type, entity_id, data):
     except Exception as e:
         logger.error(f"Error saving to fallback file: {e}")
 
+# Serve static files from React build
+@app.route('/assets/<path:filename>')
+def serve_assets(filename):
+    return send_from_directory(os.path.join('..', 'frontend', 'dist', 'assets'), filename)
+
 # Serve React frontend
 @app.route('/')
 def serve_frontend():
-    # Check if frontend build exists, otherwise redirect to frontend dev server
-    frontend_build = os.path.join('frontend', 'dist', 'index.html')
-    frontend_dev = os.path.join('frontend', 'index.html')
+    # Check if frontend build exists
+    frontend_build = os.path.join('..', 'frontend', 'dist', 'index.html')
     
     if os.path.exists(frontend_build):
-        return send_from_directory(os.path.join('frontend', 'dist'), 'index.html')
-    elif os.path.exists(frontend_dev):
-        return send_from_directory('frontend', 'index.html')
+        return send_from_directory(os.path.join('..', 'frontend', 'dist'), 'index.html')
     else:
         # If frontend build doesn't exist, show instruction page
         return '''
