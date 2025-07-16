@@ -538,13 +538,6 @@ export default function Settings() {
     </div>
   )
 }
-
-import { useState } from 'react'
-import { Save, Key, Bell, Shield, User } from 'lucide-react'
-
-function Settings() {
-  const [activeTab, setActiveTab] = useState('profile')
-  const [settings, setSettings] = useState({
     email: 'admin@example.com',
     firstName: 'Admin',
     lastName: 'User',
