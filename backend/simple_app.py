@@ -51,6 +51,36 @@ def get_db_connection():
         return None
 
 # Initialize database tables
+def reset_database():
+    """Reset database by dropping existing tables."""
+    conn = get_db_connection()
+    if not conn:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        
+        # Drop tables in correct order due to foreign key constraints
+        cursor.execute('DROP TABLE IF EXISTS usage_records CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS billing_invoices CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS payment_methods CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS conversations CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS models CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS subscriptions CASCADE')
+        cursor.execute('DROP TABLE IF EXISTS users CASCADE')
+        
+        conn.commit()
+        logger.info("Database tables dropped successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Database reset failed: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 def init_database():
     conn = get_db_connection()
     if not conn:
@@ -62,7 +92,7 @@ def init_database():
         # Create users table with OAuth support
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id VARCHAR(255) PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 username VARCHAR(80) UNIQUE NOT NULL,
                 password_hash VARCHAR(255),
@@ -2066,8 +2096,8 @@ def create_demo_admin():
 if __name__ == '__main__':
     logger.info("Starting Custom GPT System...")
 
-    # Initialize database
-    if init_database():
+    # Reset and initialize database
+    if reset_database() and init_database():
         logger.info("Database initialized successfully")
         
         # Create demo admin user
