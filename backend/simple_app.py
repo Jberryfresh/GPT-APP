@@ -412,8 +412,12 @@ def save_to_fallback(entity_type, entity_id, data):
 @app.route('/')
 def serve_frontend():
     # Check if frontend build exists, otherwise redirect to frontend dev server
-    frontend_index = os.path.join('frontend', 'index.html')
-    if os.path.exists(frontend_index):
+    frontend_build = os.path.join('frontend', 'dist', 'index.html')
+    frontend_dev = os.path.join('frontend', 'index.html')
+    
+    if os.path.exists(frontend_build):
+        return send_from_directory(os.path.join('frontend', 'dist'), 'index.html')
+    elif os.path.exists(frontend_dev):
         return send_from_directory('frontend', 'index.html')
     else:
         # If frontend build doesn't exist, show instruction page
@@ -463,7 +467,12 @@ def serve_frontend():
 
 @app.route('/<path:path>')
 def serve_static(path):
-    # Serve frontend static files
+    # Serve frontend static files from build directory first
+    frontend_build_file = os.path.join('frontend', 'dist', path)
+    if os.path.exists(frontend_build_file):
+        return send_from_directory(os.path.join('frontend', 'dist'), path)
+    
+    # Fallback to dev files
     frontend_file = os.path.join('frontend', path)
     if os.path.exists(frontend_file):
         return send_from_directory('frontend', path)
