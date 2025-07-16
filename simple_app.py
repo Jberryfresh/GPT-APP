@@ -1,12 +1,17 @@
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, make_response
 from flask_cors import CORS
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import urllib.parse
+import random
+import time
+import csv
+from io import StringIO
+from io import BytesIO
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -594,16 +599,16 @@ def get_system_health():
     try:
         import psutil
         import time
-        
+
         # Memory information
         memory = psutil.virtual_memory()
         process = psutil.Process()
         process_memory = process.memory_info().rss / (1024**3)  # GB
-        
+
         warnings = []
         if process_memory > 6:
             warnings.append(f"High memory usage: {process_memory:.2f}GB")
-        
+
         health_data = {
             'timestamp': datetime.now().isoformat(),
             'overall_status': 'warning' if warnings else 'healthy',
@@ -624,7 +629,7 @@ def get_system_health():
                 'torch_available': True  # Assuming available
             }
         }
-        
+
         return jsonify(health_data)
     except ImportError:
         # Fallback if psutil not available
@@ -655,9 +660,9 @@ def get_performance_metrics():
         # Simulate performance data - replace with actual metrics collection
         import time
         import random
-        
+
         uptime = time.time() - 1642694400  # Simulate uptime from some start time
-        
+
         performance_data = {
             'uptime_seconds': uptime,
             'total_requests': random.randint(500, 2000),
@@ -685,7 +690,7 @@ def get_performance_metrics():
                 }
             }
         }
-        
+
         return jsonify(performance_data)
     except Exception as e:
         logger.error(f"Error getting performance metrics: {str(e)}")
@@ -714,7 +719,7 @@ def get_alerts():
                 'resolved': True
             }
         ]
-        
+
         return jsonify({
             'alerts': alerts,
             'unresolved_count': len([a for a in alerts if not a['resolved']])
@@ -722,6 +727,340 @@ def get_alerts():
     except Exception as e:
         logger.error(f"Error getting alerts: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+# Analytics endpoints
+@app.route('/api/analytics')
+def get_analytics():
+    time_range = request.args.get('range', '7d')
+
+    # Generate sample analytics data based on time range
+    days = {'1d': 1, '7d': 7, '30d': 30, '90d': 90}[time_range]
+
+    # Sample data generation
+    import random
+    import datetime
+
+    # Generate time series data
+    def generate_series(base_value, days, volatility=0.1):
+        series = []
+        current = base_value
+        for i in range(days):
+            current += random.uniform(-volatility * base_value, volatility * base_value)
+            series.append(max(0, int(current)))
+        return series
+
+    # Overview metrics
+    total_users = 1250 + random.randint(-50, 100)
+    active_users = int(total_users * 0.35) + random.randint(-20, 30)
+    total_models = 48 + random.randint(-5, 10)
+    total_conversations = 15600 + random.randint(-500, 1000)
+    revenue = 12500 + random.randint(-1000, 2000)
+    growth = round(random.uniform(2.5, 15.2), 1)
+
+    analytics_data = {
+        'overview': {
+            'totalUsers': total_users,
+            'activeUsers': active_users,
+            'totalModels': total_models,
+            'totalConversations': total_conversations,
+            'revenue': revenue,
+            'growth': growth
+        },
+        'userMetrics': {
+            'newUsers': generate_series(25, days, 0.3),
+            'activeUsers': generate_series(active_users // days, days, 0.2),
+            'retention': generate_series(68, days, 0.05)
+        },
+        'modelMetrics': {
+            'modelUsage': generate_series(150, days, 0.25),
+            'performanceStats': [
+                {'name': 'Legal Assistant v2', 'usage': 450, 'rating': '4.9', 'type': 'Legal'},
+                {'name': 'Medical Advisor', 'usage': 380, 'rating': '4.8', 'type': 'Healthcare'},
+                {'name': 'Financial Analyst', 'usage': 320, 'rating': '4.7', 'type': 'Finance'},
+                {'name': 'Code Reviewer', 'usage': 280, 'rating': '4.6', 'type': 'Technology'},
+                {'name': 'Content Creator', 'usage': 220, 'rating': '4.5', 'type': 'Marketing'}
+            ],
+            'trainingMetrics': generate_series(8, days, 0.4)
+        },
+        'revenueMetrics': {
+            'revenue': generate_series(revenue // days, days, 0.15),
+            'subscriptions': generate_series(85, days, 0.1),
+            'churn': generate_series(3.2, days, 0.3)
+        },
+        'systemMetrics': {
+            'apiCalls': generate_series(2500, days, 0.2),
+            'responseTime': generate_series(250, days, 0.15),
+            'errorRate': generate_series(0.8, days, 0.5)
+        }
+    }
+
+    return jsonify(analytics_data)
+
+@app.route('/api/analytics/export/<format>')
+def export_analytics(format):
+    if format not in ['csv', 'pdf', 'json']:
+        return jsonify({'error': 'Invalid export format'}), 400
+
+    # Generate export data
+    export_data = {
+        'exported_at': datetime.datetime.now().isoformat(),
+        'format': format,
+        'data_url': f'/downloads/analytics_export_{format}_{int(time.time())}.{format}'
+    }
+
+    return jsonify(export_data)
+
+@app.route('/api/analytics/users')
+def get_user_analytics():
+    # Detailed user analytics
+    user_data = {
+        'demographics': {
+            'by_subscription': {
+                'Free': 65,
+                'Individual': 25,
+                'Professional': 8,
+                'Enterprise': 2
+            },
+            'by_region': {
+                'North America': 45,
+                'Europe': 30,
+                'Asia': 20,
+                'Other': 5
+            }
+        },
+        'engagement': {
+            'daily_active': 45,
+            'weekly_active': 120,
+            'monthly_active': 280,
+            'avg_session_duration': 24.5,
+            'avg_messages_per_session': 12.3
+        },
+        'growth': {
+            'new_signups_today': 8,
+            'new_signups_this_week': 45,
+            'new_signups_this_month': 180
+        }
+    }
+
+    return jsonify(user_data)
+
+@app.route('/api/analytics/models')
+def get_model_analytics():
+    # Model performance analytics
+    model_data = {
+        'performance': {
+            'total_models': 48,
+            'active_models': 35,
+            'training_models': 3,
+            'avg_accuracy': 0.92,
+            'avg_response_time': 1.8
+        },
+        'usage': {
+            'total_conversations': 15600,
+            'total_messages': 186000,
+            'total_tokens': 23000000,
+            'avg_conversation_length': 12
+        },
+        'popular_models': [
+            {'name': 'Legal Assistant v2', 'conversations': 2400, 'rating': 4.9},
+            {'name': 'Medical Advisor', 'conversations': 1950, 'rating': 4.8},
+            {'name': 'Financial Analyst', 'conversations': 1600, 'rating': 4.7},
+            {'name': 'Code Reviewer', 'conversations': 1200, 'rating': 4.6},
+            {'name': 'Content Creator', 'conversations': 980, 'rating': 4.5}
+        ]
+    }
+
+    return jsonify(model_data)
+
+@app.route('/api/analytics/revenue')
+def get_revenue_analytics():
+    # Revenue and subscription analytics
+    revenue_data = {
+        'overview': {
+            'mrr': 12500,
+            'arr': 150000,
+            'total_revenue': 45000,
+            'growth_rate': 8.5
+        },
+        'subscriptions': {
+            'total_subscribers': 425,
+            'new_this_month': 45,
+            'churned_this_month': 12,
+            'churn_rate': 2.8,
+            'ltv': 450
+        },
+        'by_tier': {
+            'Free': {'count': 275, 'revenue': 0},
+            'Individual': {'count': 105,'revenue': 1049},
+            'Professional': {'count': 35, 'revenue': 1749},
+            'Enterprise': {'count': 10, 'revenue': 1999}
+        }
+    }
+
+    return jsonify(revenue_data)
+
+# Monitoring endpoints
+@app.route('/api/monitoring/metrics')
+def get_monitoring_metrics():
+    return jsonify({
+        'cpu_usage': random.uniform(20, 80),
+        'memory_usage': random.uniform(30, 70),
+        'disk_usage': random.uniform(10, 60),
+        'active_connections': random.randint(50, 200),
+        'requests_per_minute': random.randint(100, 500),
+        'error_rate': random.uniform(0.1, 2.0)
+    })
+
+# Reports endpoints
+@app.route('/api/reports')
+def get_reports():
+    # Sample report history
+    sample_reports = [
+        {
+            'id': 'rpt_001',
+            'name': 'User Activity Report - July 2025',
+            'type': 'user_activity',
+            'generated_at': '2025-07-15 10:30:00',
+            'size': '2.4 MB',
+            'status': 'completed'
+        },
+        {
+            'id': 'rpt_002',
+            'name': 'Model Performance Report - Q2 2025',
+            'type': 'model_performance',
+            'generated_at': '2025-07-10 14:15:00',
+            'size': '1.8 MB',
+            'status': 'completed'
+        },
+        {
+            'id': 'rpt_003',
+            'name': 'Revenue Analysis - June 2025',
+            'type': 'revenue_analysis',
+            'generated_at': '2025-07-05 09:00:00',
+            'size': '950 KB',
+            'status': 'completed'
+        }
+    ]
+
+    return jsonify({'reports': sample_reports})
+
+@app.route('/api/reports/generate', methods=['POST'])
+def generate_report():
+    data = request.get_json()
+    report_type = data.get('type')
+
+    if not report_type:
+        return jsonify({'error': 'Report type is required'}), 400
+
+    # Simulate report generation
+    import time
+    time.sleep(1)  # Simulate processing time
+
+    report_id = f"rpt_{int(time.time())}"
+
+    return jsonify({
+        'success': True,
+        'report_id': report_id,
+        'message': f'Report generation started for {report_type}',
+        'estimated_completion': '2-3 minutes'
+    })
+
+@app.route('/api/reports/<report_id>/download')
+def download_report(report_id):
+    format_type = request.args.get('format', 'pdf')
+
+    # In a real implementation, you would generate or retrieve the actual report
+    # For demo purposes, we'll return a simple text response
+
+    if format_type == 'pdf':
+        from io import BytesIO
+        import time
+
+        # Create a simple text file simulating PDF content
+        content = f"""
+CUSTOM GPT ANALYTICS REPORT
+Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
+Report ID: {report_id}
+
+EXECUTIVE SUMMARY
+================
+This report provides comprehensive analytics for your Custom GPT platform.
+
+USER METRICS
+============
+- Total Users: 1,250
+- Active Users: 450
+- New Users (30 days): 180
+- User Retention: 68%
+
+MODEL PERFORMANCE
+=================
+- Total Models: 48
+- Active Models: 35
+- Average Accuracy: 92%
+- Total Conversations: 15,600
+
+REVENUE ANALYTICS
+=================
+- Monthly Recurring Revenue: $12,500
+- Annual Recurring Revenue: $150,000
+- Growth Rate: 8.5%
+- Customer Lifetime Value: $450
+
+RECOMMENDATIONS
+===============
+1. Focus on improving user retention
+2. Expand model library in popular categories
+3. Implement advanced analytics features
+4. Consider enterprise pricing tier
+
+This is a sample report for demonstration purposes.
+        """
+
+        response = make_response(content)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=report_{report_id}.pdf'
+        return response
+
+    elif format_type == 'csv':
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Sample CSV data
+        writer.writerow(['Metric', 'Value', 'Date'])
+        writer.writerow(['Total Users', '1250', '2025-07-16'])
+        writer.writerow(['Active Users', '450', '2025-07-16'])
+        writer.writerow(['New Users', '180', '2025-07-16'])
+        writer.writerow(['Revenue', '12500', '2025-07-16'])
+
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=report_{report_id}.csv'
+        return response
+
+    return jsonify({'error': 'Unsupported format'}), 400
+
+@app.route('/api/reports/schedule', methods=['POST'])
+def schedule_report():
+    data = request.get_json()
+
+    schedule_data = {
+        'id': f"schedule_{int(time.time())}",
+        'report_type': data.get('report_type'),
+        'frequency': data.get('frequency'),  # daily, weekly, monthly
+        'time': data.get('time'),
+        'recipients': data.get('recipients', []),
+        'active': True
+    }
+
+    return jsonify({
+        'success': True,
+        'schedule': schedule_data,
+        'message': 'Report scheduled successfully'
+    })
 
 if __name__ == '__main__':
     logger.info("Starting Simple Custom GPT App")
