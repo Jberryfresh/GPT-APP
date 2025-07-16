@@ -538,6 +538,8 @@ export default function Settings() {
     </div>
   )
 }
+
+  const [settings, setSettings] = useState({
     email: 'admin@example.com',
     firstName: 'Admin',
     lastName: 'User',
