@@ -34,7 +34,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python app.py"
+args = "cd backend && python app.py"
 
 [[workflows.workflow]]
 name = "Run Full Stack"
@@ -43,7 +43,7 @@ mode = "parallel"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python app.py"
+args = "cd backend && python app.py"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -56,4 +56,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python simple_app.py"
+args = "cd backend && python simple_app.py"

@@ -18,8 +18,8 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-# Add the current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the backend directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend'))
 
 from config import get_config, create_example_configs
 from data_ingestion import DataIngestionPipeline, IngestionConfig, create_sample_documents
