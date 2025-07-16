@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 import traceback
 import requests
 from urllib.parse import urlencode
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -943,7 +946,8 @@ def evaluate_model(model_id):
             ]
         }
 
-        return jsonify(evaluation_results)
+        return jsonify(```json
+evaluation_results)
     except Exception as e:
         logger.error(f"Error evaluating model: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -1860,9 +1864,73 @@ def add_payment_method():
                 ''', (
                     payment_method_id,
                     user_id,
-                    f"pm_{payment_method_id[:24]}",  # Mock Stripe ID
-                    data.get('type', 'card'),
+                    f"pm_{payment_method_id[:24]}",  # Mock Stripe ID                    data.get('type', 'card'),
                     data.get('last_four', '4242'),
                     data.get('brand', 'visa'),
                     data.get('exp_month', 12),
-                    data
+                    data.get('exp_year', 2026),
+                    data.get('is_default', False)
+                ))
+
+                conn.commit()
+
+                return jsonify({
+                    'success': True,
+                    'message': 'Payment method added successfully'
+                })
+
+            finally:
+                cursor.close()
+                conn.close()
+
+    except Exception as e:
+        logger.error(f"Error adding payment method: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def record_usage(user_id, operation_type, tokens_used=0, compute_time=0, model_id=None):
+    """Record usage for billing purposes."""
+    conn = get_db_connection()
+    if not conn:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO usage_records (user_id, model_id, operation_type, tokens_used, compute_time_seconds)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (user_id, model_id, operation_type, tokens_used, compute_time))
+
+        # Update subscription usage
+        cursor.execute('''
+            UPDATE subscriptions 
+            SET monthly_tokens_used = monthly_tokens_used + %s,
+                monthly_training_hours_used = monthly_training_hours_used + %s
+            WHERE user_id = %s
+        ''', (tokens_used, compute_time / 3600, user_id))  # Convert seconds to hours
+
+        conn.commit()
+        return True
+
+    except Exception as e:
+        logger.error(f"Error recording usage: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+# Initialize database and start server
+if __name__ == '__main__':
+    logger.info("Starting Custom GPT System...")
+
+    # Initialize database
+    if init_database():
+        logger.info("Database initialized successfully")
+    else:
+        logger.error("Failed to initialize database")
+
+    # Start the Flask application
+    app.run(host='0.0.0.0', port=5000, debug=True)
