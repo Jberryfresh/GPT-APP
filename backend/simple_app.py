@@ -411,10 +411,12 @@ def save_to_fallback(entity_type, entity_id, data):
 # Serve React frontend
 @app.route('/')
 def serve_frontend():
-    # Check if simple_index.html exists, otherwise create a basic HTML page
-    if os.path.exists('simple_index.html'):
-        return send_from_directory('.', 'simple_index.html')
+    # Check if frontend build exists, otherwise redirect to frontend dev server
+    frontend_index = os.path.join('frontend', 'index.html')
+    if os.path.exists(frontend_index):
+        return send_from_directory('frontend', 'index.html')
     else:
+        # If frontend build doesn't exist, show instruction page
         return '''
 <!DOCTYPE html>
 <html>
@@ -423,17 +425,28 @@ def serve_frontend():
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         .container { text-align: center; }
+        .notice { background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3; }
         .api-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
         .endpoint { background: white; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Custom GPT System API</h1>
-        <p>Welcome to the Custom GPT System backend API!</p>
+        <h1>Custom GPT System</h1>
+        
+        <div class="notice">
+            <h2>Frontend Setup Required</h2>
+            <p>To see the full application interface, you need to start the frontend:</p>
+            <ol style="text-align: left; display: inline-block;">
+                <li>Open a new terminal/shell</li>
+                <li>Run: <code>cd frontend && npm install</code></li>
+                <li>Run: <code>npm run dev</code></li>
+                <li>The React frontend will be available on port 3000</li>
+            </ol>
+        </div>
         
         <div class="api-info">
-            <h2>Available API Endpoints:</h2>
+            <h2>Backend API (Port 5000)</h2>
             <div class="endpoint"><strong>GET /api/health</strong> - Health check</div>
             <div class="endpoint"><strong>POST /api/auth/login</strong> - User login</div>
             <div class="endpoint"><strong>POST /api/auth/register</strong> - User registration</div>
@@ -442,7 +455,6 @@ def serve_frontend():
             <div class="endpoint"><strong>GET /api/stats</strong> - System statistics</div>
         </div>
         
-        <p>API is running successfully! You can test the endpoints using a tool like Postman or curl.</p>
         <p><a href="/api/health">Test Health Check</a></p>
     </div>
 </body>
@@ -451,10 +463,15 @@ def serve_frontend():
 
 @app.route('/<path:path>')
 def serve_static(path):
-    if os.path.exists(os.path.join('.', path)):
-        return send_from_directory('.', path)
+    # Serve frontend static files
+    frontend_file = os.path.join('frontend', path)
+    if os.path.exists(frontend_file):
+        return send_from_directory('frontend', path)
+    
+    # For non-API routes, serve the frontend
     if not path.startswith('api/'):
         return serve_frontend()
+    
     return jsonify({'error': 'Not found'}), 404
 
 # Health check
