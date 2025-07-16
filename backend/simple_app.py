@@ -62,7 +62,7 @@ def init_database():
         # Create users table with OAuth support
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                id SERIAL PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 username VARCHAR(80) UNIQUE NOT NULL,
                 password_hash VARCHAR(255),
@@ -87,8 +87,8 @@ def init_database():
         # Create subscriptions table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS subscriptions (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 tier VARCHAR(50) DEFAULT 'free',
                 status VARCHAR(50) DEFAULT 'active',
                 stripe_customer_id VARCHAR(255),
@@ -111,10 +111,10 @@ def init_database():
         # Create models table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS models (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 status VARCHAR(50) DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -123,9 +123,9 @@ def init_database():
         # Create conversations table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                model_id UUID REFERENCES models(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                model_id INTEGER REFERENCES models(id) ON DELETE CASCADE,
                 messages JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -134,9 +134,9 @@ def init_database():
         # Create usage_records table for billing
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS usage_records (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-                model_id UUID REFERENCES models(id) ON DELETE SET NULL,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                model_id INTEGER REFERENCES models(id) ON DELETE SET NULL,
                 operation_type VARCHAR(50) NOT NULL,
                 tokens_used INTEGER DEFAULT 0,
                 compute_time_seconds REAL DEFAULT 0.0,
@@ -148,8 +148,8 @@ def init_database():
         # Create billing_invoices table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS billing_invoices (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 stripe_invoice_id VARCHAR(255),
                 amount_cents INTEGER NOT NULL,
                 currency VARCHAR(3) DEFAULT 'USD',
@@ -164,8 +164,8 @@ def init_database():
         # Create payment_methods table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS payment_methods (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 stripe_payment_method_id VARCHAR(255) UNIQUE NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 last_four VARCHAR(4),
@@ -411,14 +411,50 @@ def save_to_fallback(entity_type, entity_id, data):
 # Serve React frontend
 @app.route('/')
 def serve_frontend():
-    return send_from_directory('.', 'simple_index.html')
+    # Check if simple_index.html exists, otherwise create a basic HTML page
+    if os.path.exists('simple_index.html'):
+        return send_from_directory('.', 'simple_index.html')
+    else:
+        return '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Custom GPT System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .container { text-align: center; }
+        .api-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .endpoint { background: white; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Custom GPT System API</h1>
+        <p>Welcome to the Custom GPT System backend API!</p>
+        
+        <div class="api-info">
+            <h2>Available API Endpoints:</h2>
+            <div class="endpoint"><strong>GET /api/health</strong> - Health check</div>
+            <div class="endpoint"><strong>POST /api/auth/login</strong> - User login</div>
+            <div class="endpoint"><strong>POST /api/auth/register</strong> - User registration</div>
+            <div class="endpoint"><strong>POST /api/chat</strong> - Chat with AI (requires auth)</div>
+            <div class="endpoint"><strong>GET /api/models</strong> - List models (requires auth)</div>
+            <div class="endpoint"><strong>GET /api/stats</strong> - System statistics</div>
+        </div>
+        
+        <p>API is running successfully! You can test the endpoints using a tool like Postman or curl.</p>
+        <p><a href="/api/health">Test Health Check</a></p>
+    </div>
+</body>
+</html>
+        '''
 
 @app.route('/<path:path>')
 def serve_static(path):
     if os.path.exists(os.path.join('.', path)):
         return send_from_directory('.', path)
     if not path.startswith('api/'):
-        return send_from_directory('.', 'simple_index.html')
+        return serve_frontend()
     return jsonify({'error': 'Not found'}), 404
 
 # Health check
