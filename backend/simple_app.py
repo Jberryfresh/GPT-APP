@@ -118,7 +118,7 @@ def init_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS subscriptions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 tier VARCHAR(50) DEFAULT 'free',
                 status VARCHAR(50) DEFAULT 'active',
                 stripe_customer_id VARCHAR(255),
@@ -144,7 +144,7 @@ def init_database():
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 status VARCHAR(50) DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -154,7 +154,7 @@ def init_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 model_id INTEGER REFERENCES models(id) ON DELETE CASCADE,
                 messages JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -165,7 +165,7 @@ def init_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS usage_records (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 model_id INTEGER REFERENCES models(id) ON DELETE SET NULL,
                 operation_type VARCHAR(50) NOT NULL,
                 tokens_used INTEGER DEFAULT 0,
@@ -179,7 +179,7 @@ def init_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS billing_invoices (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 stripe_invoice_id VARCHAR(255),
                 amount_cents INTEGER NOT NULL,
                 currency VARCHAR(3) DEFAULT 'USD',
@@ -195,7 +195,7 @@ def init_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS payment_methods (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                user_id VARCHAR(255) REFERENCES users(id) ON DELETE CASCADE,
                 stripe_payment_method_id VARCHAR(255) UNIQUE NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 last_four VARCHAR(4),
