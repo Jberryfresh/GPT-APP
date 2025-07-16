@@ -2011,6 +2011,57 @@ def record_usage(user_id, operation_type, tokens_used=0, compute_time=0, model_i
         cursor.close()
         conn.close()
 
+def create_demo_admin():
+    """Create demo admin user if it doesn't exist."""
+    try:
+        # Check if admin user already exists
+        conn = get_db_connection()
+        if not conn:
+            logger.warning("Cannot create demo admin - database connection failed")
+            return
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE email = %s", ('admin@example.com',))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            logger.info("Demo admin user already exists")
+            cursor.close()
+            conn.close()
+            return
+
+        # Create demo admin user
+        admin_user = create_user(
+            email='admin@example.com',
+            username='admin',
+            password='admin123',
+            first_name='Demo',
+            last_name='Admin'
+        )
+
+        if admin_user:
+            logger.info("Demo admin user created successfully")
+            # Update subscription to enterprise tier for demo
+            cursor.execute('''
+                UPDATE subscriptions 
+                SET tier = 'enterprise', 
+                    monthly_token_limit = -1,
+                    monthly_training_hours_limit = -1,
+                    max_models = -1,
+                    priority_support = true
+                WHERE user_id = %s
+            ''', (admin_user['id'],))
+            conn.commit()
+            logger.info("Demo admin subscription upgraded to enterprise")
+        else:
+            logger.error("Failed to create demo admin user")
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"Error creating demo admin user: {e}")
+
 # Initialize database and start server
 if __name__ == '__main__':
     logger.info("Starting Custom GPT System...")
@@ -2018,6 +2069,9 @@ if __name__ == '__main__':
     # Initialize database
     if init_database():
         logger.info("Database initialized successfully")
+        
+        # Create demo admin user
+        create_demo_admin()
     else:
         logger.error("Failed to initialize database")
 
